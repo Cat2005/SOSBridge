@@ -176,12 +176,12 @@ export default function EmergencyForm({ onError }: Props) {
                 onClick={() => setSelectedService(service.id)}
                 className={`
                   aspect-square relative rounded-xl transition-all duration-200 
-                  border-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900
+                  border-2 focus:outline-none 
                   flex flex-col items-center justify-center space-y-2 p-2
                   ${
                     isSelected
-                      ? `${service.color} text-white border-transparent focus:ring-white/50`
-                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 focus:ring-emerald-500 hover:border-slate-600'
+                      ? `${service.color} text-white border-transparent`
+                      : 'bg-[#14181F] hover:bg-[#14181F] border-[#14181F] text-slate-300 hover:border-[#14181F]'
                   }
                 `}
                 aria-label={`Select ${service.label} emergency service`}>
@@ -222,7 +222,7 @@ export default function EmergencyForm({ onError }: Props) {
           placeholder="Please provide details about your emergency situation..."
           maxLength={maxChars}
           rows={4}
-          className="resize-none focus:ring-emerald-500 focus:border-emerald-500 bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
+          className="resize-none bg-[#14181F] border-[#14181F] ring-0 text-slate-100 placeholder-slate-500"
           aria-describedby="char-count"
         />
         <div
@@ -257,19 +257,32 @@ export default function EmergencyForm({ onError }: Props) {
                 variant="outline"
                 onClick={handleLocationRequest}
                 disabled={isAllowed === true}
-                className="w-full h-12 justify-start space-x-2 mb-3 border-slate-600 text-slate-200 hover:bg-slate-800 hover:border-slate-500 bg-slate-800">
-                <MapPin className="w-4 h-4" />
-                <span>
+                className={`
+                  w-full h-12 justify-start space-x-2 mb-3 transition-all duration-300
+                  ${
+                    isAllowed === true
+                      ? 'border-[#14181F] text-slate-200 hover:bg-[#14181F] hover:border-[#14181F] bg-[#14181F]'
+                      : 'border-orange-500 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:border-orange-400 relative overflow-hidden'
+                  }
+                `}>
+                {/* Pulsing background effect when not shared */}
+                {isAllowed !== true && (
+                  <div className="absolute inset-0 bg-orange-500/20 animate-pulse rounded-md" />
+                )}
+            
+                <MapPin className={`w-4 h-4 relative z-10 ${isAllowed !== true ? 'ml-3' : ''}`} />
+                <span className="relative z-10 font-medium">
                   {isAllowed === true
                     ? 'Location Shared'
                     : 'Share Current Location'}
                 </span>
                 {isAllowed === true && (
-                  <Badge variant="secondary" className="ml-auto">
+                  <Badge variant="secondary" className="ml-auto relative z-10">
                     <CheckCircle className="w-3 h-3 mr-1" />
                     Shared
                   </Badge>
                 )}
+             
               </Button>
             </motion.div>
           )}
@@ -289,7 +302,7 @@ export default function EmergencyForm({ onError }: Props) {
               value={manualAddress}
               onChange={(e) => setManualAddress(e.target.value)}
               placeholder="Enter your full address (street, city, state, zip)"
-              className="focus:ring-emerald-500 focus:border-emerald-500 bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
+              className="bg-[#14181F] border-[#14181F] ring-0 text-slate-100 placeholder-slate-500"
             />
           </div>
         )}
@@ -304,7 +317,7 @@ export default function EmergencyForm({ onError }: Props) {
           (!coords && !manualAddress.trim() && !resolvedAddress) ||
           isSubmitting
         }
-        className="w-full h-14 text-lg font-medium bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+        className="w-full h-14 text-lg font-medium bg-[#14181F] hover:bg-[#14181F] disabled:opacity-50 disabled:cursor-not-allowed">
         {isSubmitting ? (
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

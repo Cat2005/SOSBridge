@@ -10,7 +10,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <div className="min-h-full flex flex-col items-center justify-center p-4 relative bg-slate-900">
+    <div className="min-h-full flex flex-col items-center justify-center p-4 relative bg-[#0E1017]">
       {error && (
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
       )}

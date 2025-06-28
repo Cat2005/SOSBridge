@@ -131,7 +131,7 @@ export default function LocationDisplay({
         </div>
 
         {/* Address Section */}
-        <div className="flex-1 p-3 flex flex-col justify-center">
+        <div className="flex-1 p-3 flex bg-[#14181F] flex-col justify-center">
           {isLoading ? (
             <div className="flex items-center space-x-2 text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
