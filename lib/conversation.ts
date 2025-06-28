@@ -201,6 +201,20 @@ export class Conversation extends EventEmitter {
         }
         break
 
+      case 'agent_response':
+        if (message.text && message.text.trim()) {
+          console.log(`[Agent] Speaking: "${message.text}"`)
+          this.emit('message', {
+            role: 'callee',
+            text: message.text,
+          })
+        } else {
+          console.log('[Agent] Received empty response, ignoring')
+        }
+        break
+
+      case 'audio_chunk':
+
       case 'conversation_ended':
         console.log('[Conversation] Call ended by ElevenLabs')
         this.emit('message', {
@@ -211,7 +225,7 @@ export class Conversation extends EventEmitter {
         break
 
       case 'ping':
-        console.log('[WebSocket] Received ping response')
+        // console.log('[WebSocket] Received ping response')
         break
 
       default:
