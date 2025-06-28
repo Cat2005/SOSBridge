@@ -139,9 +139,7 @@ export class Conversation extends EventEmitter {
     // Set up WebSocket event handlers
     ws.on('message', (data) => {
       console.log(
-        `[WebSocket] Received raw message: ${data
-          .toString()
-          .substring(0, 200)}...`
+        `[WebSocket] Received raw message: ${data.toString()}`
       )
       try {
         const message = JSON.parse(data.toString())
