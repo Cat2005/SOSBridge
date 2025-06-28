@@ -1,25 +1,27 @@
-import './globals.css';
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import './globals.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import '@/lib/shutdown'
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Silent SOS - Emergency Communication',
   description: 'Secure, silent emergency communication platform',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-};
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className={`${inter.className} h-full bg-neutral-50 dark:bg-slate-950 transition-colors`}>
+      <body
+        className={`${inter.className} h-full bg-neutral-50 dark:bg-slate-950 transition-colors`}>
         {children}
         <ToastContainer
           position="top-center"
@@ -36,5 +38,5 @@ export default function RootLayout({
         />
       </body>
     </html>
-  );
+  )
 }

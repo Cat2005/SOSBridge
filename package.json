@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "cleanup": "./kill-dev.sh",
+    "kill": "./kill-dev.sh",
     "test": "jest",
     "test:watch": "jest --watch"
   },

@@ -103,7 +103,7 @@ export async function startCall(
           prompt: prompt,
         },
         first_message: emergencyData
-          ? `Hello, I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${
+          ? `I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${
               emergencyData.serviceNeeded === 'ambulance'
                 ? 'medical'
                 : emergencyData.serviceNeeded

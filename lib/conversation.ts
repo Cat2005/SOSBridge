@@ -344,3 +344,32 @@ export function removeConversation(sessionId: string) {
     )
   }
 }
+
+// Cleanup function to close all conversations
+export function cleanupAllConversations() {
+  console.log('[Conversation Store] Cleaning up all conversations...')
+  const sessionIds = Array.from(conversations.keys())
+
+  for (const sessionId of sessionIds) {
+    removeConversation(sessionId)
+  }
+
+  console.log(
+    `[Conversation Store] Cleaned up ${sessionIds.length} conversations`
+  )
+}
+
+// Set up cleanup on process exit
+if (typeof process !== 'undefined') {
+  process.on('SIGINT', () => {
+    console.log('[Conversation Store] Received SIGINT, cleaning up...')
+    cleanupAllConversations()
+    process.exit(0)
+  })
+
+  process.on('SIGTERM', () => {
+    console.log('[Conversation Store] Received SIGTERM, cleaning up...')
+    cleanupAllConversations()
+    process.exit(0)
+  })
+}

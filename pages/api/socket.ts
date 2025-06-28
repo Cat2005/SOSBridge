@@ -1,7 +1,11 @@
 import { NextApiRequest } from 'next'
 import { Server as IOServer } from 'socket.io'
 import { Server as HTTPServer } from 'http'
-import { getConversation, removeConversation } from '@/lib/conversation'
+import {
+  getConversation,
+  removeConversation,
+  cleanupAllConversations,
+} from '@/lib/conversation'
 
 interface SocketServer extends HTTPServer {
   io?: IOServer
@@ -153,6 +157,20 @@ export default function handler(
     })
 
     res.socket.server.io = io
+
+    // Set up cleanup on process exit
+    if (typeof process !== 'undefined') {
+      const cleanup = () => {
+        console.log('[Socket.IO] Cleaning up server...')
+        io.close(() => {
+          console.log('[Socket.IO] Server closed')
+          cleanupAllConversations()
+        })
+      }
+
+      process.on('SIGINT', cleanup)
+      process.on('SIGTERM', cleanup)
+    }
   }
 
   res.end()

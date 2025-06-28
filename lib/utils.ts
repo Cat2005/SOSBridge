@@ -47,11 +47,42 @@ export function checkRateLimit(
 }
 
 // Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, value] of rateLimitStore.entries()) {
-    if (now > value.resetTime) {
-      rateLimitStore.delete(key)
-    }
+let cleanupInterval: NodeJS.Timeout | null = null
+
+export function startRateLimitCleanup() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval)
   }
-}, 60000) // Clean up every minute
+
+  cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [key, value] of Array.from(rateLimitStore.entries())) {
+      if (now > value.resetTime) {
+        rateLimitStore.delete(key)
+      }
+    }
+  }, 60000) // Clean up every minute
+}
+
+export function stopRateLimitCleanup() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval)
+    cleanupInterval = null
+  }
+}
+
+// Start cleanup on module load
+startRateLimitCleanup()
+
+// Clean up on process exit
+if (typeof process !== 'undefined') {
+  process.on('SIGINT', () => {
+    stopRateLimitCleanup()
+    process.exit(0)
+  })
+
+  process.on('SIGTERM', () => {
+    stopRateLimitCleanup()
+    process.exit(0)
+  })
+}
