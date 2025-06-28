@@ -115,25 +115,7 @@ export default function handler(
               socket.emit('error', 'Failed to send message to operator')
             }
           } else {
-            // Fallback to simulated operator
-            socket.emit('operator-typing')
-
-            setTimeout(() => {
-              const responses = [
-                'I understand. Can you provide more details about your location?',
-                'Help is on the way. Please stay safe and keep this connection open.',
-                'Are there any injuries that need immediate medical attention?',
-                "I've dispatched units to your location. ETA is approximately 5 minutes.",
-              ]
-
-              const response =
-                responses[Math.floor(Math.random() * responses.length)]
-
-              socket.emit('operator-message', {
-                text: response,
-                timestamp: new Date().toISOString(),
-              })
-            }, 3000 + Math.random() * 2000)
+            socket.emit('error', 'No active conversation found')
           }
         }
       )
