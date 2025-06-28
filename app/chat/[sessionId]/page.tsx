@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
@@ -22,7 +22,7 @@ interface Message {
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
-  const sessionId = params.sessionId as string;
+  const sessionId = params?.sessionId as string;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -33,13 +33,32 @@ export default function ChatPage() {
   
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketInitializedRef = useRef(false);
   const toastSteps = useToastSteps();
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000');
+    if (!sessionId) {
+      router.push('/');
+      return;
+    }
+
+    // Prevent creating multiple socket connections
+    if (socketInitializedRef.current || (socketRef.current && socketRef.current.connected)) {
+      console.log('Socket already initialized or connected, skipping...');
+      return;
+    }
+
+    console.log('Initializing socket connection...');
+    socketInitializedRef.current = true;
+
+    const socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000', {
+      path: '/api/socket',
+      forceNew: true,
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log('Socket connected');
       setIsConnected(true);
       socket.emit('join-session', sessionId);
       toastSteps.success('Connected to operator');
@@ -47,6 +66,7 @@ export default function ChatPage() {
     });
 
     socket.on('disconnect', () => {
+      console.log('Socket disconnected');
       setIsConnected(false);
       setCallStatus('ended');
       toastSteps.error('Connection lost');
@@ -79,9 +99,14 @@ export default function ChatPage() {
     });
 
     return () => {
-      socket.disconnect();
+      console.log('Cleaning up socket connection...');
+      socketInitializedRef.current = false;
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
-  }, [sessionId, toastSteps]);
+  }, [sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
