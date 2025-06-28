@@ -11,7 +11,7 @@ const EmergencyRequestSchema = z.object({
       longitude: z.number(),
     })
     .optional(),
-  manualAddress: z.string().optional(),
+  manualAddress: z.string().nullable(),
   browserLanguage: z.string(),
   timestamp: z.string(),
 })
