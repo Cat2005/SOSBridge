@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { useToastSteps } from '@/hooks/useToastSteps'
@@ -45,12 +44,21 @@ const EMERGENCY_SERVICES = [
 
 type ServiceType = (typeof EMERGENCY_SERVICES)[number]['id']
 
-interface Props {
-  onError: (error: string | null) => void
+interface EmergencyData {
+  serviceNeeded: string
+  description: string
+  location: { latitude: number; longitude: number } | null
+  manualAddress: string | null
+  browserLanguage: string
+  timestamp: string
 }
 
-export default function EmergencyForm({ onError }: Props) {
-  const router = useRouter()
+interface Props {
+  onError: (error: string | null) => void
+  onSubmit: (data: EmergencyData) => void
+}
+
+export default function EmergencyForm({ onError, onSubmit }: Props) {
   const [selectedService, setSelectedService] = useState<ServiceType | null>(
     null
   )
@@ -103,11 +111,11 @@ export default function EmergencyForm({ onError }: Props) {
     }
 
     setIsSubmitting(true)
-    toastSteps.start('Connecting to emergency services...')
+    toastSteps.start('Preparing emergency request...')
     onError(null)
 
     try {
-      const payload = {
+      const payload: EmergencyData = {
         serviceNeeded: selectedService,
         description: description.trim(),
         location: coords
@@ -121,33 +129,14 @@ export default function EmergencyForm({ onError }: Props) {
         timestamp: new Date().toISOString(),
       }
 
-      const response = await fetch('/api/emergency', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && data.sessionId) {
-        toastSteps.success('Connected successfully')
-        router.push(`/chat/${data.sessionId}`)
-      } else {
-        throw new Error(
-          data.error || 'Failed to establish emergency connection'
-        )
-      }
+      // Call the parent's onSubmit callback with the emergency data
+      onSubmit(payload)
+      toastSteps.success('Emergency request prepared')
     } catch (error) {
       console.error('Emergency request failed:', error)
-      toastSteps.error('Connection failed. Please try again.')
+      toastSteps.error('Failed to prepare emergency request. Please try again.')
       onError(
-        'Unable to connect to emergency services. Please try again or call 911 directly.'
+        'Unable to prepare emergency request. Please try again or call 911 directly.'
       )
     } finally {
       setIsSubmitting(false)
@@ -269,8 +258,12 @@ export default function EmergencyForm({ onError }: Props) {
                 {isAllowed !== true && (
                   <div className="absolute inset-0 bg-orange-500/20 animate-pulse rounded-md" />
                 )}
-            
-                <MapPin className={`w-4 h-4 relative z-10 ${isAllowed !== true ? 'ml-3' : ''}`} />
+
+                <MapPin
+                  className={`w-4 h-4 relative z-10 ${
+                    isAllowed !== true ? 'ml-3' : ''
+                  }`}
+                />
                 <span className="relative z-10 font-medium">
                   {isAllowed === true
                     ? 'Location Shared'
@@ -282,7 +275,6 @@ export default function EmergencyForm({ onError }: Props) {
                     Shared
                   </Badge>
                 )}
-             
               </Button>
             </motion.div>
           )}
@@ -321,7 +313,7 @@ export default function EmergencyForm({ onError }: Props) {
         {isSubmitting ? (
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>Connecting...</span>
+            <span>Preparing...</span>
           </div>
         ) : (
           <div className="flex items-center space-x-2">
