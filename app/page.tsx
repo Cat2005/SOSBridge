@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import EmergencyForm from '@/components/EmergencyForm'
 import ErrorBanner from '@/components/ErrorBanner'
-import { Shield } from 'lucide-react'
+import Image from 'next/image'
 
 export default function Home() {
   const [error, setError] = useState<string | null>(null)
@@ -21,16 +21,21 @@ export default function Home() {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md">
         {/* Header */}
-        <div className="text-center mb-8 flex items-center justify-center gap-4">
+        <div className="text-center mb-8 flex items-center justify-center">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
-            <Shield className="w-8 h-8 text-white" />
+            className="relative">
+            <Image
+              src="/web-logo.svg"
+              alt="Logo"
+              width={250}
+              height={250}
+              className="object-contain"
+              priority
+            />
           </motion.div>
-
-          <h1 className="text-3xl font-bold text-slate-100">SOS Bridge</h1>
         </div>
 
         {/* Main Form Card */}
