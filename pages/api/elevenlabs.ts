@@ -29,7 +29,7 @@ export default async function handler(
       req.headers['x-forwarded-for'] ||
       req.connection.remoteAddress ||
       'unknown'
-    const rateLimit = checkRateLimit(`elevenlabs:${clientIP}`, 10, 3600000) // 10 calls per hour
+    const rateLimit = checkRateLimit(`elevenlabs:${clientIP}`, 5, 60) // 5 calls per minute
 
     if (!rateLimit.allowed) {
       return res.status(429).json({
