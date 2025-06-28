@@ -237,7 +237,7 @@ export class Conversation extends EventEmitter {
   }
 
   sendMessage(text: string) {
-    console.log(`[User] Sending message: "${text}"`)
+    console.log(`[User] (IE PERSON THAT IS IN EMERGENCY) Sending message: "${text}"`)
 
     if (!this.ws || !this.conversationId || !this.isActive) {
       console.error(
@@ -254,18 +254,16 @@ export class Conversation extends EventEmitter {
       throw new Error('WebSocket connection is not ready')
     }
 
-    const message = {
-      type: 'user_message',
-      text,
-      conversation_id: this.conversationId,
-    }
-
     console.log(
-      `[WebSocket] Sending message to ElevenLabs: ${JSON.stringify(message)}`
+      `[WebSocket] Sending message to ElevenLabs: ${text}`
     )
 
     try {
-      this.ws.send(JSON.stringify(message))
+      this.ws.send(JSON.stringify({
+        type: 'contextual_update',
+        text: text,
+        conversation_id: this.conversationId,
+      }))
       console.log('[WebSocket] Message sent successfully')
     } catch (error) {
       console.error('[WebSocket] Error sending message via WebSocket:', error)
