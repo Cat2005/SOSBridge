@@ -8,6 +8,7 @@ const EmergencyRequestSchema = z.object({
     latitude: z.number(),
     longitude: z.number(),
   }).optional(),
+  manualAddress: z.string().optional(),
   browserLanguage: z.string(),
   timestamp: z.string(),
 });

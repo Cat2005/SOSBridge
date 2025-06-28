@@ -7,6 +7,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { useToastSteps } from '@/hooks/useToastSteps';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Shield, 
@@ -51,6 +52,7 @@ export default function EmergencyForm({ onError }: Props) {
   const router = useRouter();
   const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
   const [description, setDescription] = useState('');
+  const [manualAddress, setManualAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { request: requestLocation, coords, error: locationError, isAllowed } = useGeolocation();
@@ -83,6 +85,12 @@ export default function EmergencyForm({ onError }: Props) {
       return;
     }
 
+    // Check if we have either coordinates or manual address
+    if (!coords && !manualAddress.trim()) {
+      onError('Please provide your location or enter your address manually');
+      return;
+    }
+
     setIsSubmitting(true);
     toastSteps.start('Connecting to emergency services...');
     onError(null);
@@ -95,6 +103,7 @@ export default function EmergencyForm({ onError }: Props) {
           latitude: coords.latitude,
           longitude: coords.longitude
         } : null,
+        manualAddress: manualAddress.trim() || null,
         browserLanguage: navigator.language,
         timestamp: new Date().toISOString()
       };
@@ -208,12 +217,14 @@ export default function EmergencyForm({ onError }: Props) {
         <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-2">
           Location
         </label>
+        
+        {/* Automatic Location Button */}
         <Button
           type="button"
           variant="outline"
           onClick={handleLocationRequest}
           disabled={isAllowed === true}
-          className="w-full h-12 justify-start space-x-2"
+          className="w-full h-12 justify-start space-x-2 mb-3"
         >
           <MapPin className="w-4 h-4" />
           <span>
@@ -227,6 +238,29 @@ export default function EmergencyForm({ onError }: Props) {
           )}
         </Button>
         
+        {/* Manual Address Input */}
+        <div className="space-y-2">
+          <label htmlFor="manual-address" className="block text-sm font-medium text-neutral-700 dark:text-slate-300">
+            Or Enter Address Manually
+          </label>
+          <Input
+            id="manual-address"
+            type="text"
+            value={manualAddress}
+            onChange={(e) => setManualAddress(e.target.value)}
+            placeholder="Enter your full address (street, city, state, zip)"
+            className="focus:ring-emerald-500 focus:border-emerald-500"
+            disabled={isAllowed === true && coords !== null}
+          />
+          <p className="text-xs text-neutral-500 dark:text-slate-400">
+            {isAllowed === true && coords !== null 
+              ? 'Location detected automatically. You can still enter a manual address if needed.'
+              : 'Please enter your address if location sharing is not available.'
+            }
+          </p>
+        </div>
+        
+        {/* Show Coordinates if Available */}
         {coords && (
           <div className="mt-2 text-xs text-neutral-600 dark:text-slate-400 bg-neutral-100 dark:bg-slate-800 rounded-lg p-2">
             Location: {coords.latitude.toFixed(6)}, {coords.longitude.toFixed(6)}
@@ -237,7 +271,7 @@ export default function EmergencyForm({ onError }: Props) {
       {/* Submit Button */}
       <Button
         type="submit"
-        disabled={!selectedService || description.trim().length < 10 || isSubmitting}
+        disabled={!selectedService || description.trim().length < 10 || (!coords && !manualAddress.trim()) || isSubmitting}
         className="w-full h-14 text-lg font-medium bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isSubmitting ? (
