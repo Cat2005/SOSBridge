@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { z } from 'zod'
 import { checkRateLimit } from '@/lib/utils'
-import { startCall, openConvWS } from '@/lib/elevenlabs'
+import { startCall, openConvWS, EmergencyData } from '@/lib/elevenlabs'
 import { getConversation } from '@/lib/conversation'
 
 const EmergencyRequestSchema = z.object({
@@ -72,35 +72,40 @@ export default async function handler(
     // Start ElevenLabs call
     let callResponse
     try {
-      console.log(`[Emergency] Starting ElevenLabs call for session: ${sessionId}`)
-      callResponse = await startCall()
-      
+      console.log(
+        `[Emergency] Starting ElevenLabs call for session: ${sessionId}`
+      )
+      callResponse = await startCall(validatedData as EmergencyData)
+
       // Open WebSocket connection
       const ws = openConvWS(callResponse.conversationId)
-      
+
       // Set up conversation details
       conversation.setConversationDetails(callResponse.conversationId, ws)
-      
+
       // Wait a moment for WebSocket to connect
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
       // Send emergency context to ElevenLabs
       const emergencyContext = buildEmergencyContext(validatedData)
       try {
         conversation.sendMessage(emergencyContext)
         console.log(`[Emergency] Context sent to ElevenLabs:`, emergencyContext)
       } catch (contextError) {
-        console.error('[Emergency] Failed to send context to ElevenLabs:', contextError)
+        console.error(
+          '[Emergency] Failed to send context to ElevenLabs:',
+          contextError
+        )
         // Continue anyway - the call is still active
       }
-      
+
       console.log(`[Emergency] ElevenLabs call started successfully:`, {
         sessionId,
         conversationId: callResponse.conversationId,
       })
     } catch (error) {
       console.error('[Emergency] Failed to start ElevenLabs call:', error)
-      
+
       // Even if ElevenLabs fails, we still want to return success
       // The frontend can handle the fallback to simulated operator
       return res.status(200).json({
@@ -149,26 +154,28 @@ function buildEmergencyContext(data: {
   browserLanguage: string
 }): string {
   const serviceMap = {
-    police: 'police',
+    police: 'police department',
     fire: 'fire department',
-    ambulance: 'medical emergency/ambulance'
+    ambulance: 'medical emergency/ambulance',
   }
-  
+
   const service = serviceMap[data.serviceNeeded]
-  
-  let context = `EMERGENCY ALERT: ${service.toUpperCase()} needed. `
-  context += `Description: ${data.description}. `
-  
+  const timestamp = new Date().toLocaleString()
+
+  let context = `EMERGENCY UPDATE - ${service.toUpperCase()}: `
+  context += `The person you are speaking for has reported: "${data.description}". `
+
   if (data.location) {
-    context += `Location coordinates: ${data.location.latitude}, ${data.location.longitude}. `
+    context += `Their GPS coordinates are: ${data.location.latitude}, ${data.location.longitude}. `
   }
-  
+
   if (data.manualAddress) {
-    context += `Manual address: ${data.manualAddress}. `
+    context += `They also provided this address: ${data.manualAddress}. `
   }
-  
-  context += `Browser language: ${data.browserLanguage}. `
-  context += `Please respond appropriately to this emergency situation.`
-  
+
+  context += `This emergency was reported at ${timestamp}. `
+  context += `The person's browser language is ${data.browserLanguage}. `
+  context += `Please use this information to provide accurate details to emergency dispatchers if they ask for more specific information.`
+
   return context
 }

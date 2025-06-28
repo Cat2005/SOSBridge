@@ -23,19 +23,102 @@ console.log(`[ElevenLabs] Agent ID: ${ELEVEN_AGENT_ID}`)
 console.log(`[ElevenLabs] Phone ID: ${ELEVEN_PHONE_ID}`)
 console.log(`[ElevenLabs] Callee Number: ${CALLEE_NUMBER}`)
 
+export interface EmergencyData {
+  serviceNeeded: 'police' | 'fire' | 'ambulance'
+  description: string
+  location?: { latitude: number; longitude: number }
+  manualAddress?: string | null
+  browserLanguage: string
+  timestamp: string
+}
+
 export interface OutboundCallResponse {
   conversationId: string
 }
 
-export async function startCall(): Promise<OutboundCallResponse> {
+function buildEmergencyPrompt(emergencyData: EmergencyData): string {
+  const serviceMap = {
+    police: 'police department',
+    fire: 'fire department',
+    ambulance: 'medical emergency services/ambulance',
+  }
+
+  const service = serviceMap[emergencyData.serviceNeeded]
+  const timestamp = new Date(emergencyData.timestamp).toLocaleString()
+
+  let locationInfo = ''
+  if (emergencyData.location) {
+    locationInfo = `Location coordinates: ${emergencyData.location.latitude}, ${emergencyData.location.longitude}. `
+  }
+  if (emergencyData.manualAddress) {
+    locationInfo += `Manual address provided: ${emergencyData.manualAddress}. `
+  }
+
+  const prompt = `You are an AI emergency communication assistant speaking on behalf of someone who cannot speak at the moment. 
+
+EMERGENCY DETAILS:
+- Service needed: ${service}
+- Emergency description: ${emergencyData.description}
+- ${locationInfo}
+- Time reported: ${timestamp}
+- User's language: ${emergencyData.browserLanguage}
+
+YOUR ROLE:
+You are calling emergency services (${service}) on behalf of someone in distress. You must:
+1. Clearly identify yourself as an AI assistant speaking for someone who cannot speak
+2. Provide all the emergency details above clearly and concisely
+3. Stay calm, professional, and speak clearly
+4. Answer any questions from emergency dispatchers
+5. Provide additional context if requested
+6. Stay on the line until emergency services arrive or you're told to hang up
+
+IMPORTANT:
+- This is a real emergency situation requiring immediate response
+- Speak with urgency but remain composed
+- Be prepared to repeat information if needed
+- If asked for more details, provide them clearly
+- Follow any instructions given by emergency dispatchers
+
+Your first message should be: "Hello, I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${service} assistance immediately."`
+
+  return prompt
+}
+
+export async function startCall(
+  emergencyData?: EmergencyData
+): Promise<OutboundCallResponse> {
   console.log('[ElevenLabs] Starting outbound call...')
   console.log(`[ElevenLabs] Calling number: ${CALLEE_NUMBER}`)
+
+  // Build dynamic prompt based on emergency data, or use default if none provided
+  const prompt = emergencyData
+    ? buildEmergencyPrompt(emergencyData)
+    : 'You are an AI assistant calling on behalf of someone who cannot speak. They are in an emergency and need help. Please identify yourself and explain the situation clearly.'
+
+  const conversationInitiationClientData = {
+    type: 'conversation_initiation_client_data',
+    conversation_config_override: {
+      agent: {
+        prompt: {
+          prompt: prompt,
+        },
+        first_message: emergencyData
+          ? `Hello, I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${
+              emergencyData.serviceNeeded === 'ambulance'
+                ? 'medical'
+                : emergencyData.serviceNeeded
+            } assistance immediately.`
+          : 'Hello I am a bot for someone that cannot speak at the moment. They are in an emergency and need help.',
+      },
+    },
+  }
 
   try {
     const requestBody = {
       agent_id: ELEVEN_AGENT_ID,
       agent_phone_number_id: ELEVEN_PHONE_ID,
       to_number: CALLEE_NUMBER,
+      conversation_initiation_client_data: conversationInitiationClientData,
     }
 
     console.log('[ElevenLabs] Making API request to start call:')
