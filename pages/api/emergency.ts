@@ -61,6 +61,20 @@ export default async function handler(
     // Create conversation for this emergency session
     const conversation = getConversation(sessionId)
 
+    // Check if we can initiate a call to prevent duplicates
+    const canInitiate = conversation.canInitiateCall()
+    if (!canInitiate.allowed) {
+      console.log(`[Emergency] Call initiation blocked: ${canInitiate.reason}`)
+      return res.status(429).json({
+        success: false,
+        error: canInitiate.reason || 'Call initiation not allowed',
+        retryAfter: 30, // 30 seconds
+      })
+    }
+
+    // Mark call as initiated to prevent duplicates
+    conversation.markCallInitiated()
+
     console.log('Emergency request received:', {
       sessionId,
       ...validatedData,
@@ -76,19 +90,27 @@ export default async function handler(
         `[Emergency] Starting ElevenLabs call for session: ${sessionId}`
       )
       callResponse = await startCall(validatedData as EmergencyData)
+      console.log(`[Emergency] ElevenLabs call response:`, callResponse)
 
       // Open WebSocket connection
+      console.log(`[Emergency] Opening WebSocket for conversation: ${callResponse.conversationId}`)
       const ws = openConvWS(callResponse.conversationId)
+      console.log(`[Emergency] WebSocket created, readyState: ${ws.readyState}`)
 
       // Set up conversation details
+      console.log(`[Emergency] Setting conversation details...`)
       conversation.setConversationDetails(callResponse.conversationId, ws)
+      console.log(`[Emergency] Conversation details set. isActive: ${conversation.isActive}`)
 
       // Wait a moment for WebSocket to connect
+      console.log(`[Emergency] Waiting 2 seconds for WebSocket to connect...`)
       await new Promise((resolve) => setTimeout(resolve, 2000))
+      console.log(`[Emergency] After wait - WebSocket readyState: ${ws.readyState}, conversation isActive: ${conversation.isActive}`)
 
       // Send emergency context to ElevenLabs
       const emergencyContext = buildEmergencyContext(validatedData)
       try {
+        console.log(`[Emergency] Attempting to send context message...`)
         conversation.sendMessage(emergencyContext)
         console.log(`[Emergency] Context sent to ElevenLabs:`, emergencyContext)
       } catch (contextError) {
@@ -102,9 +124,18 @@ export default async function handler(
       console.log(`[Emergency] ElevenLabs call started successfully:`, {
         sessionId,
         conversationId: callResponse.conversationId,
+        isActive: conversation.isActive,
       })
     } catch (error) {
       console.error('[Emergency] Failed to start ElevenLabs call:', error)
+      console.error('[Emergency] Error details:', {
+        name: (error as any)?.name,
+        message: (error as any)?.message,
+        stack: (error as any)?.stack,
+      })
+
+      // If call failed, reset the initiation state
+      conversation.callInitiated = false
 
       // Even if ElevenLabs fails, we still want to return success
       // The frontend can handle the fallback to simulated operator

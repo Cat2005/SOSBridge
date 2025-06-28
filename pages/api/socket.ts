@@ -1,4 +1,4 @@
-import { NextApiRequest } from 'next'
+import { NextApiRequest, NextApiResponse } from 'next'
 import { Server as IOServer } from 'socket.io'
 import { Server as HTTPServer } from 'http'
 import {
@@ -11,7 +11,7 @@ interface SocketServer extends HTTPServer {
   io?: IOServer
 }
 
-interface SocketNextApiResponse {
+type SocketNextApiResponse = NextApiResponse & {
   socket: {
     server: SocketServer
   }
@@ -101,6 +101,14 @@ export default function handler(
           console.log('User message:', data)
 
           const conversation = getConversation(data.sessionId)
+          
+          // Debug conversation state
+          console.log(`[Socket] Conversation state for session ${data.sessionId}:`)
+          console.log(`  - conversationId: ${conversation.conversationId}`)
+          console.log(`  - isActive: ${conversation.isActive}`)
+          console.log(`  - callInitiated: ${conversation.callInitiated}`)
+          console.log(`  - ws exists: ${!!conversation.ws}`)
+          console.log(`  - ws readyState: ${conversation.ws?.readyState || 'N/A'}`)
 
           if (conversation.isActive && conversation.conversationId) {
             // Send message to ElevenLabs
@@ -115,6 +123,7 @@ export default function handler(
               socket.emit('error', 'Failed to send message to operator')
             }
           } else {
+            console.log('[Socket] No active conversation - emitting error to client')
             socket.emit('error', 'No active conversation found')
           }
         }
@@ -155,5 +164,5 @@ export default function handler(
     }
   }
 
-  res.end()
+  res.status(200).json({ success: true })
 }

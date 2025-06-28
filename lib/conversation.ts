@@ -133,6 +133,7 @@ export class Conversation extends EventEmitter {
     console.log(
       `[Conversation] Setting up conversation details - ID: ${conversationId}, Session: ${this.sessionId}`
     )
+    console.log(`[Conversation] WebSocket initial state: ${ws.readyState}`)
     this.conversationId = conversationId
     this.ws = ws
 
@@ -154,11 +155,13 @@ export class Conversation extends EventEmitter {
       console.log(
         `[WebSocket] Connection closed - Code: ${code}, Reason: ${reason}`
       )
+      console.log(`[Conversation] Setting isActive to false due to close`)
       this.handleConnectionClose()
     })
 
     ws.on('error', (error) => {
       console.error('[WebSocket] WebSocket error:', error)
+      console.log(`[Conversation] Setting isActive to false due to error`)
       this.handleConnectionClose()
     })
 
@@ -169,7 +172,7 @@ export class Conversation extends EventEmitter {
       )
       this.isActive = true
       console.log(
-        `[Conversation] Conversation activated for session: ${this.sessionId}`
+        `[Conversation] Conversation activated for session: ${this.sessionId} (isActive = true)`
       )
     })
 
@@ -180,7 +183,11 @@ export class Conversation extends EventEmitter {
       )
       this.isActive = true
       console.log(
-        `[Conversation] Conversation activated (already connected) for session: ${this.sessionId}`
+        `[Conversation] Conversation activated (already connected) for session: ${this.sessionId} (isActive = true)`
+      )
+    } else {
+      console.log(
+        `[WebSocket] WebSocket not yet open (state: ${ws.readyState}), waiting for 'open' event`
       )
     }
   }
@@ -252,11 +259,24 @@ export class Conversation extends EventEmitter {
 
   sendMessage(text: string) {
     console.log(`[User] (IE PERSON THAT IS IN EMERGENCY) Sending message: "${text}"`)
+    
+    // Debug the conversation state
+    console.log(`[Conversation] Debug state:`)
+    console.log(`  - sessionId: ${this.sessionId}`)
+    console.log(`  - conversationId: ${this.conversationId}`)
+    console.log(`  - ws exists: ${!!this.ws}`)
+    console.log(`  - ws readyState: ${this.ws?.readyState || 'N/A'}`)
+    console.log(`  - isActive: ${this.isActive}`)
+    console.log(`  - callInitiated: ${this.callInitiated}`)
 
     if (!this.ws || !this.conversationId || !this.isActive) {
       console.error(
         '[Conversation] Cannot send message - conversation not active'
       )
+      console.error(`[Conversation] Missing components:`)
+      console.error(`  - ws: ${!this.ws ? 'MISSING' : 'OK'}`)
+      console.error(`  - conversationId: ${!this.conversationId ? 'MISSING' : 'OK'}`)
+      console.error(`  - isActive: ${!this.isActive ? 'FALSE' : 'TRUE'}`)
       throw new Error('Conversation not active')
     }
 
@@ -315,13 +335,21 @@ export class Conversation extends EventEmitter {
   }
 }
 
-// Global conversation store
-const conversations = new Map<string, Conversation>()
+// Global conversation store - persistent across Next.js hot reloads
+declare global {
+  var conversationStore: Map<string, Conversation> | undefined
+}
+
+const conversations = globalThis.conversationStore || new Map<string, Conversation>()
+globalThis.conversationStore = conversations
 
 export function getConversation(sessionId: string): Conversation {
   console.log(
     `[Conversation Store] Getting conversation for session: ${sessionId}`
   )
+  console.log(`[Conversation Store] Current store has ${conversations.size} conversations`)
+  console.log(`[Conversation Store] Store keys: [${Array.from(conversations.keys()).join(', ')}]`)
+  
   let conversation = conversations.get(sessionId)
   if (!conversation) {
     console.log(
@@ -329,10 +357,16 @@ export function getConversation(sessionId: string): Conversation {
     )
     conversation = new Conversation(sessionId)
     conversations.set(sessionId, conversation)
+    console.log(`[Conversation Store] Store now has ${conversations.size} conversations`)
   } else {
     console.log(
       `[Conversation Store] Found existing conversation for session: ${sessionId}`
     )
+    console.log(`[Conversation Store] Existing conversation state:`)
+    console.log(`  - conversationId: ${conversation.conversationId}`)
+    console.log(`  - isActive: ${conversation.isActive}`)
+    console.log(`  - callInitiated: ${conversation.callInitiated}`)
+    console.log(`  - ws exists: ${!!conversation.ws}`)
   }
   return conversation
 }
@@ -369,17 +403,4 @@ export function cleanupAllConversations() {
   )
 }
 
-// Set up cleanup on process exit
-if (typeof process !== 'undefined') {
-  process.on('SIGINT', () => {
-    console.log('[Conversation Store] Received SIGINT, cleaning up...')
-    cleanupAllConversations()
-    process.exit(0)
-  })
-
-  process.on('SIGTERM', () => {
-    console.log('[Conversation Store] Received SIGTERM, cleaning up...')
-    cleanupAllConversations()
-    process.exit(0)
-  })
-}
+// Note: Signal handlers are managed by lib/shutdown.ts to avoid conflicts

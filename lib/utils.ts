@@ -74,15 +74,4 @@ export function stopRateLimitCleanup() {
 // Start cleanup on module load
 startRateLimitCleanup()
 
-// Clean up on process exit
-if (typeof process !== 'undefined') {
-  process.on('SIGINT', () => {
-    stopRateLimitCleanup()
-    process.exit(0)
-  })
-
-  process.on('SIGTERM', () => {
-    stopRateLimitCleanup()
-    process.exit(0)
-  })
-}
+// Note: Signal handlers are managed by lib/shutdown.ts to avoid conflicts
