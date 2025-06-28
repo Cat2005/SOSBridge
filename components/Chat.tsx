@@ -89,6 +89,16 @@ Your first message should be: "Hello, I am an AI assistant calling on behalf of 
 async function startElevenLabsCall(
   emergencyData: EmergencyData
 ): Promise<string> {
+  console.log('ELEVEN_API_KEY', ELEVEN_API_KEY)
+  console.log('ELEVEN_AGENT_ID', ELEVEN_AGENT_ID)
+  console.log('ELEVEN_PHONE_ID', ELEVEN_PHONE_ID)
+  console.log('CALLEE_NUMBER', CALLEE_NUMBER)
+
+  console.log('NEXT_PUBLIC_ELEVEN_API_KEY', process.env.NEXT_PUBLIC_ELEVEN_API_KEY)
+  console.log('NEXT_PUBLIC_ELEVEN_AGENT_ID', process.env.NEXT_PUBLIC_ELEVEN_AGENT_ID)
+  console.log('NEXT_PUBLIC_ELEVEN_PHONE_ID', process.env.NEXT_PUBLIC_ELEVEN_PHONE_ID)
+  console.log('NEXT_PUBLIC_CALLEE_NUMBER', process.env.NEXT_PUBLIC_CALLEE_NUMBER)
+
   if (
     !ELEVEN_API_KEY ||
     !ELEVEN_AGENT_ID ||
@@ -156,10 +166,8 @@ async function startElevenLabsCall(
   return data.conversation_id
 }
 
-function openElevenLabsWebSocket(conversationId: string): WebSocket {
-  console.log(
-    `[ElevenLabs] Opening WebSocket connection for conversation: ${conversationId}`
-  )
+function openElevenLabsWebSocket(): WebSocket {
+  
 
   if (!ELEVEN_API_KEY || !ELEVEN_AGENT_ID) {
     throw new Error('Missing ElevenLabs environment variables')
@@ -167,43 +175,37 @@ function openElevenLabsWebSocket(conversationId: string): WebSocket {
 
   // Note: Browser WebSocket doesn't support custom headers in constructor
   // The API key should be passed via URL parameters or the server should handle authentication differently
-  const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${ELEVEN_AGENT_ID}&conversation_id=${conversationId}&xi-api-key=${ELEVEN_API_KEY}`
+  const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${ELEVEN_AGENT_ID}`
   console.log(`[ElevenLabs] WebSocket URL: ${wsUrl}`)
 
   const ws = new WebSocket(wsUrl)
 
-  // Keep-alive ping every 30 seconds
-  const pingInterval = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      try {
-        console.log('[ElevenLabs] Sending keep-alive ping')
-        ws.send(JSON.stringify({ type: 'ping' }))
-      } catch (error) {
-        console.error('[ElevenLabs] Error sending ping:', error)
-        clearInterval(pingInterval)
-      }
-    } else {
-      console.log(
-        `[ElevenLabs] WebSocket not open for ping (state: ${ws.readyState}), clearing interval`
-      )
-      clearInterval(pingInterval)
-    }
-  }, 30000)
-
   ws.onclose = () => {
     console.log('[ElevenLabs] WebSocket closed')
-    clearInterval(pingInterval)
   }
+
+
 
   ws.onerror = (error) => {
     console.error('[ElevenLabs] WebSocket error:', error)
-    clearInterval(pingInterval)
   }
 
   ws.onopen = () => {
     console.log(
-      `[ElevenLabs] WebSocket connection established for conversation: ${conversationId}`
+      `[ElevenLabs] WebSocket connection established`
     )
+
+    ws.send(JSON.stringify({
+      type: 'conversation_initiation_client_data',
+      conversation_config_override: {
+        agent: {
+          prompt: {
+            prompt: 'You are an assistant AI calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need assistance immediately.',
+          },
+          first_message: `Hey how are you doing girl!!!!.`,
+        },
+      },
+    }))
   }
 
   return ws
@@ -215,7 +217,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const [isConnected, setIsConnected] = useState(false)
   const [isOperatorTyping, setIsOperatorTyping] = useState(false)
   const [callStatus, setCallStatus] = useState<
-    'connecting' | 'active' | 'ended'
+    'connecting' | 'active' | 'ended' | 'hanging_up'
   >('connecting')
   const [error, setError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -242,11 +244,11 @@ export default function Chat({ emergencyData, onBack }: Props) {
         )
 
         // Start the call
-        const convId = await startElevenLabsCall(emergencyData)
-        setConversationId(convId)
+        // const convId = await startElevenLabsCall(emergencyData)
+        // setConversationId(convId)
 
         // Open WebSocket connection
-        const ws = openElevenLabsWebSocket(convId)
+        const ws = openElevenLabsWebSocket()
         wsRef.current = ws
 
         ws.onmessage = (event) => {
@@ -254,7 +256,24 @@ export default function Chat({ emergencyData, onBack }: Props) {
             const data = JSON.parse(event.data)
             console.log('[ElevenLabs] Received message:', data)
 
-            if (
+            // Log all message types for debugging
+            console.log(`[ElevenLabs] Message type: ${data.type}`)
+            console.log(
+              `[ElevenLabs] Full message data:`,
+              JSON.stringify(data, null, 2)
+            )
+
+            if (data.type === 'ping') {
+              // Respond to ping with pong containing the same event_id
+              const pongResponse = {
+                type: 'pong',
+                event_id: data.ping_event.event_id,
+              }
+              ws.send(JSON.stringify(pongResponse))
+              console.log(
+                `[ElevenLabs] Responded to ping with pong: ${data.ping_event.event_id}`
+              )
+            } else if (
               data.type === 'agent_transcript' ||
               data.type === 'agent_response'
             ) {
@@ -274,13 +293,13 @@ export default function Chat({ emergencyData, onBack }: Props) {
               console.log('[ElevenLabs] Conversation ended')
               setCallStatus('ended')
               toastSteps.info('Call ended by operator')
-            } else if (data.type === 'ping') {
-              console.log('[ElevenLabs] Received ping response')
             } else {
               console.log(`[ElevenLabs] Unknown message type: ${data.type}`)
+              console.log(`[ElevenLabs] Unknown message data:`, data)
             }
           } catch (error) {
             console.error('[ElevenLabs] Error parsing message:', error)
+            console.error('[ElevenLabs] Raw message data:', event.data)
           }
         }
 
@@ -367,11 +386,49 @@ export default function Chat({ emergencyData, onBack }: Props) {
   }
 
   const endCall = () => {
+    console.log('[Chat] User initiated call end')
+
     if (wsRef.current) {
+      console.log('[Chat] Closing WebSocket connection')
       wsRef.current.close()
+      wsRef.current = null
     }
+
     setCallStatus('ended')
-    onBack()
+    toastSteps.info('Call ended')
+
+    // Add a small delay before going back to allow the user to see the "Call Ended" status
+    setTimeout(() => {
+      onBack()
+    }, 1500)
+  }
+
+  const hangUpCall = () => {
+    console.log('[Chat] User initiated hang up')
+
+    // Set hanging up state for visual feedback
+    setCallStatus('hanging_up')
+    toastSteps.info('Hanging up call...')
+
+    if (wsRef.current && conversationId) {
+      try {
+        // Send a hang up signal to ElevenLabs if supported
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'hang_up',
+            conversation_id: conversationId,
+          })
+        )
+        console.log('[Chat] Sent hang up signal to ElevenLabs')
+      } catch (error) {
+        console.error('[Chat] Error sending hang up signal:', error)
+      }
+    }
+
+    // Close the connection after a short delay
+    setTimeout(() => {
+      endCall()
+    }, 1000)
   }
 
   return (
@@ -403,6 +460,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
             <span className="text-sm font-medium text-slate-300">
               {callStatus === 'connecting' && 'Connecting...'}
               {callStatus === 'active' && 'Operator Online'}
+              {callStatus === 'hanging_up' && 'Hanging Up...'}
               {callStatus === 'ended' && 'Call Ended'}
             </span>
           </div>
@@ -410,8 +468,22 @@ export default function Chat({ emergencyData, onBack }: Props) {
           <Button
             variant={callStatus === 'active' ? 'destructive' : 'ghost'}
             size="sm"
-            onClick={endCall}
-            className="p-2 text-slate-300 hover:text-white hover:bg-[#1E2329]">
+            onClick={callStatus === 'active' ? hangUpCall : endCall}
+            disabled={callStatus === 'hanging_up'}
+            className={`p-2 ${
+              callStatus === 'active'
+                ? 'text-red-300 hover:text-white hover:bg-red-600 border border-red-500'
+                : callStatus === 'hanging_up'
+                ? 'text-slate-500 cursor-not-allowed'
+                : 'text-slate-300 hover:text-white hover:bg-[#1E2329]'
+            }`}
+            title={
+              callStatus === 'active'
+                ? 'Hang up call'
+                : callStatus === 'hanging_up'
+                ? 'Hanging up...'
+                : 'End session'
+            }>
             {callStatus === 'active' ? (
               <PhoneOff className="w-4 h-4" />
             ) : (
@@ -449,6 +521,30 @@ export default function Chat({ emergencyData, onBack }: Props) {
               timestamp={new Date()}
               isTyping
             />
+          )}
+
+          {/* Prominent Hang Up Button for Active Calls */}
+          {(callStatus === 'active' || callStatus === 'hanging_up') && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex justify-center pt-4">
+              <Button
+                onClick={hangUpCall}
+                disabled={callStatus === 'hanging_up'}
+                variant="destructive"
+                size="lg"
+                className={`px-8 py-3 rounded-full shadow-lg border-2 ${
+                  callStatus === 'hanging_up'
+                    ? 'bg-slate-600 border-slate-500 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 border-red-500'
+                } text-white`}>
+                <PhoneOff className="w-5 h-5 mr-2" />
+                {callStatus === 'hanging_up'
+                  ? 'Hanging Up...'
+                  : 'Hang Up Emergency Call'}
+              </Button>
+            </motion.div>
           )}
 
           <div ref={messagesEndRef} />
