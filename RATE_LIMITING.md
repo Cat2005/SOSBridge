@@ -1,6 +1,6 @@
 # Rate Limiting System
 
-This application implements comprehensive rate limiting to prevent abuse and excessive API calls to ElevenLabs.
+This application implements comprehensive rate limiting to prevent abuse and excessive API calls to ElevenLabs and Twilio.
 
 ## Rate Limits
 
@@ -10,13 +10,19 @@ This application implements comprehensive rate limiting to prevent abuse and exc
 - **Purpose**: Prevent spam emergency requests
 - **Headers**: `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Limit`
 
-### ElevenLabs API (`/api/elevenlabs`)
+### ElevenLabs TTS API
 
-- **Limit**: 10 calls per hour per IP address
-- **Purpose**: Prevent excessive ElevenLabs API usage
+- **Limit**: 20 TTS requests per hour per IP address
+- **Purpose**: Prevent excessive ElevenLabs TTS usage
 - **Headers**: `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Limit`
 
-### Conversation-Level Limits
+### Twilio Call API
+
+- **Limit**: 10 calls per hour per IP address
+- **Purpose**: Prevent excessive Twilio API usage
+- **Headers**: `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Limit`
+
+### Call-Level Limits
 
 - **Per Session**: 1 active call at a time
 - **Cooldown**: 30 seconds between call attempts
@@ -32,13 +38,13 @@ This application implements comprehensive rate limiting to prevent abuse and exc
    - Sliding window implementation
    - Automatic cleanup of expired entries
 
-2. **Conversation-Level Rate Limiting** (`lib/conversation.ts`)
+2. **Call-Level Rate Limiting** (Client-side)
 
    - Session-based call tracking
    - Duplicate call prevention
    - Call state management
 
-3. **Client-Side Protection** (`app/chat/[sessionId]/page.tsx`)
+3. **Client-Side Protection** (`components/Chat.tsx`)
    - Call initialization tracking
    - Error handling for rate limit responses
    - Retry mechanism with proper cooldown
@@ -69,10 +75,10 @@ When rate limits are exceeded, APIs return:
 
 ### Status Component
 
-The `ElevenLabsStatus` component displays:
+The Chat component displays:
 
-- Current connection status
-- Remaining API calls (when available)
+- Current call status
+- Processing states (speaking, uploading, etc.)
 - Visual indicators for rate limit status
 
 ### Logging
@@ -81,51 +87,36 @@ All rate limit events are logged with:
 
 - Client IP address
 - Session ID
-- Rate limit remaining count
-- Timestamp
+- API endpoint
+- Rate limit type
 
-## Configuration
+## TTS-Specific Considerations
 
-Rate limits can be adjusted in:
+### ElevenLabs TTS Limits
 
-- `lib/conversation.ts`: Conversation-level limits
-- `lib/utils.ts`: API-level limits
-- `pages/api/emergency.ts`: Emergency API limits
-- `pages/api/elevenlabs.ts`: ElevenLabs API limits
+- **Character Limit**: 5000 characters per request
+- **Audio Length**: Maximum 10 minutes per audio file
+- **Concurrent Requests**: 5 simultaneous TTS requests
+
+### Twilio Call Limits
+
+- **Call Duration**: Maximum 4 hours per call
+- **Recording Size**: Maximum 100MB per recording
+- **Concurrent Calls**: Based on your Twilio plan
 
 ## Best Practices
 
-1. **Always check rate limit headers** in client applications
-2. **Implement exponential backoff** for retry attempts
-3. **Show user-friendly error messages** when limits are hit
-4. **Monitor rate limit usage** to adjust limits as needed
-5. **Clean up expired rate limit data** to prevent memory leaks
+1. **Batch Processing**: Combine multiple short messages into one TTS request
+2. **Caching**: Cache frequently used audio files
+3. **Error Handling**: Implement exponential backoff for retries
+4. **Monitoring**: Track usage patterns and adjust limits accordingly
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **"Too many call attempts" error**
-
-   - Wait 30 seconds before retrying
-   - Check if another call is already active
-
-2. **"Hourly call limit exceeded" error**
-
-   - Wait for the hourly window to reset
-   - Consider implementing a queue system for high-volume usage
-
-3. **Rate limit headers not showing**
-   - Ensure the client is reading response headers
-   - Check if the rate limiting middleware is properly configured
-
-### Debugging
-
-Enable debug logging by setting:
-
-```javascript
-console.log('[Rate Limit]', { identifier, remaining, resetTime })
-```
+- Check rate limit headers in API responses
+- Monitor server logs for rate limit violations
+- Verify environment variable configuration
+- Ensure proper error handling in client code
 
 ## Security Considerations
 

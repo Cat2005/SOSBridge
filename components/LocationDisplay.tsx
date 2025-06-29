@@ -70,6 +70,18 @@ export default function LocationDisplay({
       if (!response.ok) throw new Error('Failed to fetch address')
 
       const data = await response.json()
+
+      // Create a shorter address format: street + zip code
+      const street =
+        data.address?.road || data.address?.house_number || 'Unknown Street'
+      const houseNumber = data.address?.house_number || ''
+      const zip = data.address?.postcode || 'Unknown ZIP'
+
+      // Combine street number and name, then add zip
+      const shortAddress = houseNumber
+        ? `${houseNumber} ${street}, ${zip}`
+        : `${street}, ${zip}`
+
       const addressData: AddressData = {
         street:
           data.address?.road || data.address?.house_number || 'Unknown Street',
@@ -80,11 +92,11 @@ export default function LocationDisplay({
           'Unknown City',
         state: data.address?.state || 'Unknown State',
         zip: data.address?.postcode || 'Unknown ZIP',
-        fullAddress: data.display_name || 'Address not available',
+        fullAddress: shortAddress, // Use the shorter format
       }
 
       setAddress(addressData)
-      onAddressChange(addressData.fullAddress)
+      onAddressChange(shortAddress) // Pass the shorter address format
     } catch (error) {
       console.error('Error fetching address:', error)
       // Fallback to coordinates if geocoding fails
@@ -143,10 +155,9 @@ export default function LocationDisplay({
                 <MapPin className="w-3 h-3 text-emerald-500" />
                 <span className="text-xs font-medium">Location Found</span>
               </div>
-              <div className="text-xs text-slate-400 space-y-0.5">
-                <div>{address.street}</div>
-                <div>
-                  {address.city}, {address.state} {address.zip}
+              <div className="text-xs text-slate-400">
+                <div className="font-medium text-slate-300">
+                  {address.fullAddress}
                 </div>
               </div>
             </div>

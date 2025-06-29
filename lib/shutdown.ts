@@ -1,4 +1,3 @@
-import { cleanupAllConversations } from './conversation'
 import { stopRateLimitCleanup } from './utils'
 
 let isShuttingDown = false
@@ -16,9 +15,9 @@ export function setupGracefulShutdown() {
     stopRateLimitCleanup()
     console.log('✅ Rate limiting cleanup stopped')
 
-    // Clean up all conversations and WebSocket connections
+    // Clean up any active Twilio calls (if needed)
     cleanupAllConversations()
-    console.log('✅ All conversations cleaned up')
+    console.log('✅ All calls cleaned up')
 
     // Force exit after a short delay to ensure cleanup completes
     setTimeout(() => {
@@ -56,6 +55,13 @@ export function setupGracefulShutdown() {
   })
 
   console.log('✅ Graceful shutdown handlers set up')
+}
+
+export function cleanupAllConversations() {
+  console.log('[Shutdown] Cleaning up all calls...')
+  // With TTS approach, calls are managed by Twilio and will end naturally
+  // or can be ended via the Twilio API if needed
+  console.log('[Shutdown] No active calls to clean up (TTS-based system)')
 }
 
 // Auto-setup on module load

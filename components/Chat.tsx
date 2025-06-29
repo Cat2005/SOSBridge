@@ -6,7 +6,7 @@ import ChatBubble from '@/components/ChatBubble'
 import LoaderDots from '@/components/LoaderDots'
 import ErrorBanner from '@/components/ErrorBanner'
 import { useToastSteps } from '@/hooks/useToastSteps'
-import { Send, ArrowLeft, Phone, PhoneOff } from 'lucide-react'
+import { Send, ArrowLeft, Phone, PhoneOff, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -33,203 +33,253 @@ interface Props {
 
 // ElevenLabs configuration
 const ELEVEN_API_KEY = process.env.NEXT_PUBLIC_ELEVEN_API_KEY
-const ELEVEN_AGENT_ID = process.env.NEXT_PUBLIC_ELEVEN_AGENT_ID
-const ELEVEN_PHONE_ID = process.env.NEXT_PUBLIC_ELEVEN_PHONE_ID
+const ELEVEN_VOICE_ID =
+  process.env.NEXT_PUBLIC_ELEVEN_VOICE_ID || '21m00Tcm4TlvDq8ikWAM' // Default voice ID
+const TWILIO_ACCOUNT_SID = process.env.NEXT_PUBLIC_TWILIO_ACCOUNT_SID
+const TWILIO_AUTH_TOKEN = process.env.NEXT_PUBLIC_TWILIO_AUTH_TOKEN
+const TWILIO_PHONE_NUMBER = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER
 const CALLEE_NUMBER = process.env.NEXT_PUBLIC_CALLEE_NUMBER
 
-function buildEmergencyPrompt(emergencyData: EmergencyData): string {
+function buildEmergencyMessage(emergencyData: EmergencyData): string {
   const serviceMap: Record<string, string> = {
-    police: 'police department',
+    police: 'police',
     fire: 'fire department',
-    ambulance: 'medical emergency services/ambulance',
+    ambulance: 'medical assistance',
   }
 
   const service =
     serviceMap[emergencyData.serviceNeeded] || emergencyData.serviceNeeded
-  const timestamp = new Date(emergencyData.timestamp).toLocaleString()
 
   let locationInfo = ''
-  if (emergencyData.location) {
-    locationInfo = `Location coordinates: ${emergencyData.location.latitude}, ${emergencyData.location.longitude}. `
-  }
   if (emergencyData.manualAddress) {
-    locationInfo += `Manual address provided: ${emergencyData.manualAddress}. `
+    locationInfo += `My address is ${emergencyData.manualAddress}. `
   }
 
-  const prompt = `You are an AI emergency communication assistant speaking on behalf of someone who cannot speak at the moment. 
-
-EMERGENCY DETAILS:
-- Service needed: ${service}
-- Emergency description: ${emergencyData.description}
-- ${locationInfo}
-- Time reported: ${timestamp}
-- User's language: ${emergencyData.browserLanguage}
-
-YOUR ROLE:
-You are calling emergency services (${service}) on behalf of someone in distress. You must:
-1. Clearly identify yourself as an AI assistant speaking for someone who cannot speak
-2. Provide all the emergency details above clearly and concisely
-3. Stay calm, professional, and speak clearly
-4. Answer any questions from emergency dispatchers
-5. Provide additional context if requested
-6. Stay on the line until emergency services arrive or you're told to hang up
-
-IMPORTANT:
-- This is a real emergency situation requiring immediate response
-- Speak with urgency but remain composed
-- Be prepared to repeat information if needed
-- If asked for more details, provide them clearly
-- Follow any instructions given by emergency dispatchers
-
-Your first message should be: "Hello, I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${service} assistance immediately."`
-
-  return prompt
+  return `Hello, I cannot speak right now. I need help with ${service}. ${emergencyData.description}. ${locationInfo}Please send help immediately.`
 }
 
-async function startElevenLabsCall(
-  emergencyData: EmergencyData
-): Promise<string> {
-  console.log('ELEVEN_API_KEY', ELEVEN_API_KEY)
-  console.log('ELEVEN_AGENT_ID', ELEVEN_AGENT_ID)
-  console.log('ELEVEN_PHONE_ID', ELEVEN_PHONE_ID)
-  console.log('CALLEE_NUMBER', CALLEE_NUMBER)
-
-  console.log('NEXT_PUBLIC_ELEVEN_API_KEY', process.env.NEXT_PUBLIC_ELEVEN_API_KEY)
-  console.log('NEXT_PUBLIC_ELEVEN_AGENT_ID', process.env.NEXT_PUBLIC_ELEVEN_AGENT_ID)
-  console.log('NEXT_PUBLIC_ELEVEN_PHONE_ID', process.env.NEXT_PUBLIC_ELEVEN_PHONE_ID)
-  console.log('NEXT_PUBLIC_CALLEE_NUMBER', process.env.NEXT_PUBLIC_CALLEE_NUMBER)
-
-  if (
-    !ELEVEN_API_KEY ||
-    !ELEVEN_AGENT_ID ||
-    !ELEVEN_PHONE_ID ||
-    !CALLEE_NUMBER
-  ) {
-    throw new Error('Missing ElevenLabs environment variables')
+async function textToSpeech(text: string): Promise<ArrayBuffer> {
+  if (!ELEVEN_API_KEY) {
+    throw new Error('Missing ElevenLabs API key')
   }
 
-  console.log('[ElevenLabs] Starting outbound call...')
-  console.log(`[ElevenLabs] Calling number: ${CALLEE_NUMBER}`)
-
-  const prompt = buildEmergencyPrompt(emergencyData)
-
-  const conversationInitiationClientData = {
-    type: 'conversation_initiation_client_data',
-    conversation_config_override: {
-      agent: {
-        prompt: {
-          prompt: prompt,
-        },
-        first_message: `I am an AI assistant calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need ${
-          emergencyData.serviceNeeded === 'ambulance'
-            ? 'medical'
-            : emergencyData.serviceNeeded
-        } assistance immediately.`,
-      },
-    },
-  }
-
-  const requestBody = {
-    agent_id: ELEVEN_AGENT_ID,
-    agent_phone_number_id: ELEVEN_PHONE_ID,
-    to_number: CALLEE_NUMBER,
-    conversation_initiation_client_data: conversationInitiationClientData,
-  }
-
-  console.log('[ElevenLabs] Making API request to start call:')
-  console.log(`[ElevenLabs] Request body:`, requestBody)
+  console.log('[ElevenLabs TTS] Converting text to speech:', text)
 
   const response = await fetch(
-    'https://api.elevenlabs.io/v1/convai/twilio/outbound-call',
+    `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE_ID}`,
     {
       method: 'POST',
       headers: {
         'xi-api-key': ELEVEN_API_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        text: text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.5,
+        },
+      }),
     }
   )
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(
-      `ElevenLabs API error: ${errorData.message || response.statusText}`
+      `ElevenLabs TTS API error: ${errorData.message || response.statusText}`
+    )
+  }
+
+  const audioBuffer = await response.arrayBuffer()
+  console.log('[ElevenLabs TTS] Audio generated successfully')
+  return audioBuffer
+}
+
+async function makeTwilioCall(audioUrl: string): Promise<string> {
+  if (
+    !TWILIO_ACCOUNT_SID ||
+    !TWILIO_AUTH_TOKEN ||
+    !TWILIO_PHONE_NUMBER ||
+    !CALLEE_NUMBER
+  ) {
+    throw new Error('Missing Twilio environment variables')
+  }
+
+  console.log('[Twilio] Making call to:', CALLEE_NUMBER)
+
+  const response = await fetch('/api/twilio/call', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: CALLEE_NUMBER,
+      from: TWILIO_PHONE_NUMBER,
+      audioUrl: audioUrl,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      `Twilio API error: ${errorData.message || response.statusText}`
     )
   }
 
   const data = await response.json()
-  console.log('[ElevenLabs] Call initiated successfully!')
-  console.log(`[ElevenLabs] Conversation ID: ${data.conversation_id}`)
-  console.log(`[ElevenLabs] Full response:`, data)
-
-  return data.conversation_id
+  console.log('[Twilio] Call initiated successfully:', data.callSid)
+  return data.callSid
 }
 
-function openElevenLabsWebSocket(): WebSocket {
-  
+async function uploadAudioToServer(audioBuffer: ArrayBuffer): Promise<string> {
+  // Convert ArrayBuffer to Blob
+  const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' })
 
-  if (!ELEVEN_API_KEY || !ELEVEN_AGENT_ID) {
-    throw new Error('Missing ElevenLabs environment variables')
-  }
+  // Create FormData
+  const formData = new FormData()
+  formData.append('audio', audioBlob, 'emergency-message.mp3')
 
-  // Note: Browser WebSocket doesn't support custom headers in constructor
-  // The API key should be passed via URL parameters or the server should handle authentication differently
-  const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${ELEVEN_AGENT_ID}`
-  console.log(`[ElevenLabs] WebSocket URL: ${wsUrl}`)
+  const response = await fetch('/api/upload-audio', {
+    method: 'POST',
+    body: formData,
+  })
 
-  const ws = new WebSocket(wsUrl)
-
-  ws.onclose = () => {
-    console.log('[ElevenLabs] WebSocket closed')
-  }
-
-
-
-  ws.onerror = (error) => {
-    console.error('[ElevenLabs] WebSocket error:', error)
-  }
-
-  ws.onopen = () => {
-    console.log(
-      `[ElevenLabs] WebSocket connection established`
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      `Audio upload error: ${errorData.message || response.statusText}`
     )
-
-    ws.send(JSON.stringify({
-      type: 'conversation_initiation_client_data',
-      conversation_config_override: {
-        agent: {
-          prompt: {
-            prompt: 'You are an assistant AI calling on behalf of someone who cannot speak at the moment. They are experiencing an emergency and need assistance immediately.',
-          },
-          first_message: `Hey how are you doing girl!!!!.`,
-        },
-      },
-    }))
   }
 
-  return ws
+  const data = await response.json()
+  console.log('[Upload] Audio uploaded successfully:', data.audioUrl)
+  return data.audioUrl
+}
+
+async function transcribeAudio(audioBlob: Blob): Promise<string> {
+  if (!ELEVEN_API_KEY) {
+    throw new Error('Missing ElevenLabs API key')
+  }
+
+  console.log('[ElevenLabs] Transcribing audio...')
+
+  const formData = new FormData()
+  formData.append('audio', audioBlob)
+  formData.append('model_id', 'eleven_english_sts_v2')
+
+  const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+    method: 'POST',
+    headers: {
+      'xi-api-key': ELEVEN_API_KEY,
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      `ElevenLabs transcription error: ${
+        errorData.message || response.statusText
+      }`
+    )
+  }
+
+  const data = await response.json()
+  console.log('[ElevenLabs] Transcription successful:', data.text)
+  return data.text
 }
 
 export default function Chat({ emergencyData, onBack }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
-  const [isConnected, setIsConnected] = useState(false)
-  const [isOperatorTyping, setIsOperatorTyping] = useState(false)
   const [callStatus, setCallStatus] = useState<
-    'connecting' | 'active' | 'ended' | 'hanging_up'
+    | 'connecting'
+    | 'active'
+    | 'ended'
+    | 'hanging_up'
+    | 'speaking'
+    | 'listening'
+    | 'transcribing'
   >('connecting')
   const [error, setError] = useState<string | null>(null)
-  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [callSid, setCallSid] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [lastTranscriptionCheck, setLastTranscriptionCheck] =
+    useState<number>(0)
+  const [transcriptionProgress, setTranscriptionProgress] = useState<string>('')
 
-  const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
   const isInitializedRef = useRef(false)
   const toastSteps = useToastSteps()
 
-  // Initialize ElevenLabs call
+  // Poll for transcribed responses
   useEffect(() => {
-    // Prevent multiple initializations
+    if (!callSid || callStatus !== 'active') return
+
+    const pollForTranscriptions = async () => {
+      try {
+        const response = await fetch(
+          `/api/twilio/get-transcriptions?callSid=${callSid}&since=${lastTranscriptionCheck}`
+        )
+        if (response.ok) {
+          const data = await response.json()
+          if (data.transcriptions && data.transcriptions.length > 0) {
+            // Add new transcriptions to chat
+            const newMessages = data.transcriptions.map(
+              (transcription: any) => ({
+                id: Date.now().toString() + Math.random(),
+                text: transcription.text,
+                sender: 'operator' as const,
+                timestamp: new Date(transcription.timestamp),
+              })
+            )
+
+            setMessages((prev) => [...prev, ...newMessages])
+            setLastTranscriptionCheck(Date.now())
+
+            // Show notification for new messages
+            if (newMessages.length > 0) {
+              toastSteps.info('Received response from operator')
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Chat] Error polling transcriptions:', error)
+      }
+    }
+
+    const interval = setInterval(pollForTranscriptions, 2000) // Poll every 2 seconds
+
+    return () => clearInterval(interval)
+  }, [callSid, callStatus, lastTranscriptionCheck, toastSteps])
+
+  // Simulate transcription progress when call is active
+  useEffect(() => {
+    if (callStatus === 'active') {
+      const progressSteps = [
+        'Listening to operator...',
+        'Processing audio...',
+        'Transcribing speech...',
+        'Listening to operator...',
+      ]
+
+      let stepIndex = 0
+      const progressInterval = setInterval(() => {
+        setTranscriptionProgress(progressSteps[stepIndex])
+        stepIndex = (stepIndex + 1) % progressSteps.length
+      }, 3000) // Change every 3 seconds
+
+      return () => clearInterval(progressInterval)
+    } else {
+      setTranscriptionProgress('')
+    }
+  }, [callStatus])
+
+  // Initialize emergency call
+  useEffect(() => {
     if (isInitializedRef.current) {
       console.log('[Chat] Already initialized, skipping...')
       return
@@ -239,96 +289,47 @@ export default function Chat({ emergencyData, onBack }: Props) {
       try {
         isInitializedRef.current = true
         console.log(
-          '[Chat] Initializing ElevenLabs call with emergency data:',
+          '[Chat] Initializing emergency call with data:',
           emergencyData
         )
 
-        // Start the call
-        // const convId = await startElevenLabsCall(emergencyData)
-        // setConversationId(convId)
+        // Build the emergency message
+        const emergencyMessage = buildEmergencyMessage(emergencyData)
+        console.log('[Chat] Emergency message:', emergencyMessage)
 
-        // Open WebSocket connection
-        const ws = openElevenLabsWebSocket()
-        wsRef.current = ws
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data)
-            console.log('[ElevenLabs] Received message:', data)
-
-            // Log all message types for debugging
-            console.log(`[ElevenLabs] Message type: ${data.type}`)
-            console.log(
-              `[ElevenLabs] Full message data:`,
-              JSON.stringify(data, null, 2)
-            )
-
-            if (data.type === 'ping') {
-              // Respond to ping with pong containing the same event_id
-              const pongResponse = {
-                type: 'pong',
-                event_id: data.ping_event.event_id,
-              }
-              ws.send(JSON.stringify(pongResponse))
-              console.log(
-                `[ElevenLabs] Responded to ping with pong: ${data.ping_event.event_id}`
-              )
-            } else if (
-              data.type === 'agent_transcript' ||
-              data.type === 'agent_response'
-            ) {
-              if (data.text && data.text.trim()) {
-                console.log(`[ElevenLabs] Agent speaking: "${data.text}"`)
-
-                const message: Message = {
-                  id: Date.now().toString(),
-                  text: data.text,
-                  sender: 'operator',
-                  timestamp: new Date(),
-                }
-                setMessages((prev) => [...prev, message])
-                setIsOperatorTyping(false)
-              }
-            } else if (data.type === 'conversation_ended') {
-              console.log('[ElevenLabs] Conversation ended')
-              setCallStatus('ended')
-              toastSteps.info('Call ended by operator')
-            } else {
-              console.log(`[ElevenLabs] Unknown message type: ${data.type}`)
-              console.log(`[ElevenLabs] Unknown message data:`, data)
-            }
-          } catch (error) {
-            console.error('[ElevenLabs] Error parsing message:', error)
-            console.error('[ElevenLabs] Raw message data:', event.data)
-          }
+        // Add the emergency message as the first message
+        const initialMessage: Message = {
+          id: Date.now().toString(),
+          text: emergencyMessage,
+          sender: 'user',
+          timestamp: new Date(),
         }
+        setMessages([initialMessage])
 
-        ws.onopen = () => {
-          console.log('[ElevenLabs] WebSocket connected')
-          setIsConnected(true)
-          setCallStatus('active')
-          toastSteps.success('Connected to emergency operator')
-        }
+        // Convert message to speech
+        setIsProcessing(true)
+        setCallStatus('speaking')
+        toastSteps.info('Converting message to speech...')
 
-        ws.onclose = (event) => {
-          console.log(
-            '[ElevenLabs] WebSocket disconnected',
-            event.code,
-            event.reason
-          )
-          setIsConnected(false)
-          setCallStatus('ended')
-          toastSteps.error('Connection lost')
-        }
+        const audioBuffer = await textToSpeech(emergencyMessage)
 
-        ws.onerror = (error) => {
-          console.error('[ElevenLabs] WebSocket error:', error)
-          // Don't set error state immediately, let onclose handle it
-        }
+        // Upload audio to server
+        toastSteps.info('Uploading audio...')
+        const audioUrl = await uploadAudioToServer(audioBuffer)
+
+        // Make Twilio call
+        toastSteps.info('Initiating call...')
+        const twilioCallSid = await makeTwilioCall(audioUrl)
+        setCallSid(twilioCallSid)
+
+        setCallStatus('active')
+        setIsProcessing(false)
+        toastSteps.success('Emergency call connected')
       } catch (error) {
         console.error('[Chat] Error initializing call:', error)
         setError('Failed to start emergency call. Please try again.')
-        // Don't reset isInitializedRef on error - let it fail once
+        setCallStatus('ended')
+        setIsProcessing(false)
       }
     }
 
@@ -336,21 +337,21 @@ export default function Chat({ emergencyData, onBack }: Props) {
 
     return () => {
       console.log('[Chat] Cleaning up...')
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === 'recording'
+      ) {
+        mediaRecorderRef.current.stop()
       }
-      // Don't reset isInitializedRef in cleanup - we want it to stay true
     }
-  }, []) // Empty dependency array - only run once
+  }, [emergencyData, toastSteps])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   const sendMessage = async () => {
-    if (!inputText.trim() || !wsRef.current || !isConnected || !conversationId)
-      return
+    if (!inputText.trim() || callStatus !== 'active' || isProcessing) return
 
     const message: Message = {
       id: Date.now().toString(),
@@ -360,19 +361,39 @@ export default function Chat({ emergencyData, onBack }: Props) {
     }
 
     setMessages((prev) => [...prev, message])
+    setIsProcessing(true)
+    setCallStatus('speaking')
 
     try {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'contextual_update',
-          text: inputText,
-          conversation_id: conversationId,
-        })
-      )
-      console.log(`[ElevenLabs] Sent message: "${inputText}"`)
+      // Convert message to speech
+      toastSteps.info('Converting message to speech...')
+      const audioBuffer = await textToSpeech(inputText)
+
+      // Upload audio to server
+      toastSteps.info('Uploading audio...')
+      const audioUrl = await uploadAudioToServer(audioBuffer)
+
+      // Play audio in the call
+      toastSteps.info('Playing message...')
+      await fetch('/api/twilio/play-audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          callSid: callSid,
+          audioUrl: audioUrl,
+        }),
+      })
+
+      setCallStatus('active')
+      setIsProcessing(false)
+      toastSteps.success('Message sent')
     } catch (error) {
-      console.error('[ElevenLabs] Error sending message:', error)
+      console.error('[Chat] Error sending message:', error)
       setError('Failed to send message')
+      setCallStatus('active')
+      setIsProcessing(false)
     }
 
     setInputText('')
@@ -388,10 +409,17 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const endCall = () => {
     console.log('[Chat] User initiated call end')
 
-    if (wsRef.current) {
-      console.log('[Chat] Closing WebSocket connection')
-      wsRef.current.close()
-      wsRef.current = null
+    if (callSid) {
+      // End the Twilio call
+      fetch('/api/twilio/end-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          callSid: callSid,
+        }),
+      }).catch(console.error)
     }
 
     setCallStatus('ended')
@@ -406,26 +434,21 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const hangUpCall = () => {
     console.log('[Chat] User initiated hang up')
 
-    // Set hanging up state for visual feedback
     setCallStatus('hanging_up')
     toastSteps.info('Hanging up call...')
 
-    if (wsRef.current && conversationId) {
-      try {
-        // Send a hang up signal to ElevenLabs if supported
-        wsRef.current.send(
-          JSON.stringify({
-            type: 'hang_up',
-            conversation_id: conversationId,
-          })
-        )
-        console.log('[Chat] Sent hang up signal to ElevenLabs')
-      } catch (error) {
-        console.error('[Chat] Error sending hang up signal:', error)
-      }
+    if (callSid) {
+      fetch('/api/twilio/end-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          callSid: callSid,
+        }),
+      }).catch(console.error)
     }
 
-    // Close the connection after a short delay
     setTimeout(() => {
       endCall()
     }, 1000)
@@ -454,12 +477,25 @@ export default function Chat({ emergencyData, onBack }: Props) {
           <div className="flex items-center space-x-2">
             <div
               className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-emerald-500' : 'bg-red-500'
+                callStatus === 'active'
+                  ? 'bg-emerald-500'
+                  : callStatus === 'speaking'
+                  ? 'bg-yellow-500'
+                  : callStatus === 'listening'
+                  ? 'bg-blue-500'
+                  : callStatus === 'transcribing'
+                  ? 'bg-purple-500'
+                  : callStatus === 'connecting'
+                  ? 'bg-blue-500'
+                  : 'bg-red-500'
               }`}
             />
             <span className="text-sm font-medium text-slate-300">
               {callStatus === 'connecting' && 'Connecting...'}
-              {callStatus === 'active' && 'Operator Online'}
+              {callStatus === 'speaking' && 'Speaking...'}
+              {callStatus === 'active' && transcriptionProgress}
+              {callStatus === 'listening' && 'Listening to operator...'}
+              {callStatus === 'transcribing' && 'Transcribing audio...'}
               {callStatus === 'hanging_up' && 'Hanging Up...'}
               {callStatus === 'ended' && 'Call Ended'}
             </span>
@@ -469,11 +505,13 @@ export default function Chat({ emergencyData, onBack }: Props) {
             variant={callStatus === 'active' ? 'destructive' : 'ghost'}
             size="sm"
             onClick={callStatus === 'active' ? hangUpCall : endCall}
-            disabled={callStatus === 'hanging_up'}
+            disabled={
+              callStatus === 'hanging_up' || callStatus === 'connecting'
+            }
             className={`p-2 ${
               callStatus === 'active'
                 ? 'text-red-300 hover:text-white hover:bg-red-600 border border-red-500'
-                : callStatus === 'hanging_up'
+                : callStatus === 'hanging_up' || callStatus === 'connecting'
                 ? 'text-slate-500 cursor-not-allowed'
                 : 'text-slate-300 hover:text-white hover:bg-[#1E2329]'
             }`}
@@ -500,8 +538,33 @@ export default function Chat({ emergencyData, onBack }: Props) {
             <div className="text-center py-8">
               <LoaderDots />
               <p className="text-sm text-slate-400 mt-4">
-                Connecting to emergency operator...
+                {isProcessing
+                  ? 'Processing emergency message...'
+                  : 'Connecting to emergency services...'}
               </p>
+            </div>
+          )}
+
+          {callStatus === 'speaking' && (
+            <div className="text-center py-8">
+              <div className="flex items-center justify-center space-x-2">
+                <Volume2 className="w-5 h-5 text-yellow-500 animate-pulse" />
+                <span className="text-sm text-yellow-500">Speaking...</span>
+              </div>
+              <p className="text-sm text-slate-400 mt-4">
+                Converting your message to speech
+              </p>
+            </div>
+          )}
+
+          {callStatus === 'active' && transcriptionProgress && (
+            <div className="text-center py-4">
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-sm text-blue-500">
+                  {transcriptionProgress}
+                </span>
+              </div>
             </div>
           )}
 
@@ -513,15 +576,6 @@ export default function Chat({ emergencyData, onBack }: Props) {
               timestamp={message.timestamp}
             />
           ))}
-
-          {isOperatorTyping && (
-            <ChatBubble
-              message={<LoaderDots />}
-              sender="operator"
-              timestamp={new Date()}
-              isTyping
-            />
-          )}
 
           {/* Prominent Hang Up Button for Active Calls */}
           {(callStatus === 'active' || callStatus === 'hanging_up') && (
@@ -563,12 +617,12 @@ export default function Chat({ emergencyData, onBack }: Props) {
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
-              disabled={!isConnected}
+              disabled={isProcessing}
               className="flex-1 bg-[#0E1017] border-[#1E2329] text-slate-100 placeholder-slate-500 focus:border-slate-600"
             />
             <Button
               onClick={sendMessage}
-              disabled={!inputText.trim() || !isConnected}
+              disabled={!inputText.trim() || isProcessing}
               size="sm"
               className="px-3 bg-[#14181F] hover:bg-[#1E2329] text-slate-300 hover:text-white border border-[#1E2329]">
               <Send className="w-4 h-4" />

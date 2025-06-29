@@ -111,7 +111,6 @@ export default function EmergencyForm({ onError, onSubmit }: Props) {
     }
 
     setIsSubmitting(true)
-    toastSteps.start('Preparing emergency request...')
     onError(null)
 
     try {
