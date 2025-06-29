@@ -19,7 +19,7 @@ We believe emergency services are broken. In many places you can’t text 999/11
 
 ## How It Works
 
-![SOSBridge](./public/gh-2.png)
+![SOSBridge](./public/diagram.png)
 
 1. **Emergency Report**: User fills out an emergency form with details about their situation
 2. **Message Generation**: System creates a natural language message from the form data
