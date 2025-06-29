@@ -6,7 +6,7 @@ import ChatBubble from '@/components/ChatBubble'
 import LoaderDots from '@/components/LoaderDots'
 import ErrorBanner from '@/components/ErrorBanner'
 import { useToastSteps } from '@/hooks/useToastSteps'
-import { Send, ArrowLeft, Phone, PhoneOff, Volume2 } from 'lucide-react'
+import { Send, ArrowLeft, Phone, PhoneOff, Volume2, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -55,7 +55,7 @@ function buildEmergencyMessage(emergencyData: EmergencyData): string {
     locationInfo += `My address is ${emergencyData.manualAddress}. `
   }
 
-  return `Hello, I cannot speak right now. I need help with ${service}. ${emergencyData.description}. ${locationInfo}Please send help immediately.`
+  return `Hello this is a robot on behalf of someone that cannot speak. They said: I need help with ${service}. ${emergencyData.description}. ${locationInfo}`
 }
 
 async function textToSpeech(text: string): Promise<ArrayBuffer> {
@@ -207,13 +207,12 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [lastTranscriptionCheck, setLastTranscriptionCheck] =
     useState<number>(0)
-  const [transcriptionProgress, setTranscriptionProgress] = useState<string>('')
+  const [statusMessage, setStatusMessage] = useState<string>('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const isInitializedRef = useRef(false)
-  const toastSteps = useToastSteps()
 
   // Poll for transcribed responses
   useEffect(() => {
@@ -239,11 +238,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
 
             setMessages((prev) => [...prev, ...newMessages])
             setLastTranscriptionCheck(Date.now())
-
-            // Show notification for new messages
-            if (newMessages.length > 0) {
-              toastSteps.info('Received response from operator')
-            }
+            setStatusMessage('') // Clear status when we get a response
           }
         }
       } catch (error) {
@@ -254,27 +249,24 @@ export default function Chat({ emergencyData, onBack }: Props) {
     const interval = setInterval(pollForTranscriptions, 2000) // Poll every 2 seconds
 
     return () => clearInterval(interval)
-  }, [callSid, callStatus, lastTranscriptionCheck, toastSteps])
+  }, [callSid, callStatus, lastTranscriptionCheck])
 
-  // Simulate transcription progress when call is active
+  // Update status message based on call status
   useEffect(() => {
-    if (callStatus === 'active') {
-      const progressSteps = [
-        'Listening to operator...',
-        'Processing audio...',
-        'Transcribing speech...',
-        'Listening to operator...',
-      ]
-
-      let stepIndex = 0
-      const progressInterval = setInterval(() => {
-        setTranscriptionProgress(progressSteps[stepIndex])
-        stepIndex = (stepIndex + 1) % progressSteps.length
-      }, 3000) // Change every 3 seconds
-
-      return () => clearInterval(progressInterval)
-    } else {
-      setTranscriptionProgress('')
+    if (callStatus === 'connecting') {
+      setStatusMessage('Connecting to emergency services...')
+    } else if (callStatus === 'speaking') {
+      setStatusMessage('Converting your message to speech...')
+    } else if (callStatus === 'active') {
+      setStatusMessage('Listening for operator response...')
+    } else if (callStatus === 'listening') {
+      setStatusMessage('Listening to operator...')
+    } else if (callStatus === 'transcribing') {
+      setStatusMessage('Transcribing operator response...')
+    } else if (callStatus === 'hanging_up') {
+      setStatusMessage('Ending call...')
+    } else if (callStatus === 'ended') {
+      setStatusMessage('Call ended')
     }
   }, [callStatus])
 
@@ -309,22 +301,18 @@ export default function Chat({ emergencyData, onBack }: Props) {
         // Convert message to speech
         setIsProcessing(true)
         setCallStatus('speaking')
-        toastSteps.info('Converting message to speech...')
 
         const audioBuffer = await textToSpeech(emergencyMessage)
 
         // Upload audio to server
-        toastSteps.info('Uploading audio...')
         const audioUrl = await uploadAudioToServer(audioBuffer)
 
         // Make Twilio call
-        toastSteps.info('Initiating call...')
         const twilioCallSid = await makeTwilioCall(audioUrl)
         setCallSid(twilioCallSid)
 
         setCallStatus('active')
         setIsProcessing(false)
-        toastSteps.success('Emergency call connected')
       } catch (error) {
         console.error('[Chat] Error initializing call:', error)
         setError('Failed to start emergency call. Please try again.')
@@ -344,11 +332,11 @@ export default function Chat({ emergencyData, onBack }: Props) {
         mediaRecorderRef.current.stop()
       }
     }
-  }, [emergencyData, toastSteps])
+  }, [emergencyData])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, statusMessage])
 
   const sendMessage = async () => {
     if (!inputText.trim() || callStatus !== 'active' || isProcessing) return
@@ -366,15 +354,12 @@ export default function Chat({ emergencyData, onBack }: Props) {
 
     try {
       // Convert message to speech
-      toastSteps.info('Converting message to speech...')
       const audioBuffer = await textToSpeech(inputText)
 
       // Upload audio to server
-      toastSteps.info('Uploading audio...')
       const audioUrl = await uploadAudioToServer(audioBuffer)
 
       // Play audio in the call
-      toastSteps.info('Playing message...')
       await fetch('/api/twilio/play-audio', {
         method: 'POST',
         headers: {
@@ -388,7 +373,6 @@ export default function Chat({ emergencyData, onBack }: Props) {
 
       setCallStatus('active')
       setIsProcessing(false)
-      toastSteps.success('Message sent')
     } catch (error) {
       console.error('[Chat] Error sending message:', error)
       setError('Failed to send message')
@@ -423,7 +407,6 @@ export default function Chat({ emergencyData, onBack }: Props) {
     }
 
     setCallStatus('ended')
-    toastSteps.info('Call ended')
 
     // Add a small delay before going back to allow the user to see the "Call Ended" status
     setTimeout(() => {
@@ -435,7 +418,6 @@ export default function Chat({ emergencyData, onBack }: Props) {
     console.log('[Chat] User initiated hang up')
 
     setCallStatus('hanging_up')
-    toastSteps.info('Hanging up call...')
 
     if (callSid) {
       fetch('/api/twilio/end-call', {
@@ -493,41 +475,24 @@ export default function Chat({ emergencyData, onBack }: Props) {
             <span className="text-sm font-medium text-slate-300">
               {callStatus === 'connecting' && 'Connecting...'}
               {callStatus === 'speaking' && 'Speaking...'}
-              {callStatus === 'active' && transcriptionProgress}
-              {callStatus === 'listening' && 'Listening to operator...'}
-              {callStatus === 'transcribing' && 'Transcribing audio...'}
+              {callStatus === 'active' && 'Connected'}
+              {callStatus === 'listening' && 'Listening...'}
+              {callStatus === 'transcribing' && 'Transcribing...'}
               {callStatus === 'hanging_up' && 'Hanging Up...'}
               {callStatus === 'ended' && 'Call Ended'}
             </span>
           </div>
 
-          <Button
-            variant={callStatus === 'active' ? 'destructive' : 'ghost'}
-            size="sm"
-            onClick={callStatus === 'active' ? hangUpCall : endCall}
-            disabled={
-              callStatus === 'hanging_up' || callStatus === 'connecting'
-            }
-            className={`p-2 ${
-              callStatus === 'active'
-                ? 'text-red-300 hover:text-white hover:bg-red-600 border border-red-500'
-                : callStatus === 'hanging_up' || callStatus === 'connecting'
-                ? 'text-slate-500 cursor-not-allowed'
-                : 'text-slate-300 hover:text-white hover:bg-[#1E2329]'
-            }`}
-            title={
-              callStatus === 'active'
-                ? 'Hang up call'
-                : callStatus === 'hanging_up'
-                ? 'Hanging up...'
-                : 'End session'
-            }>
-            {callStatus === 'active' ? (
+          {callStatus === 'active' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={hangUpCall}
+              className="p-2 text-red-300 hover:text-white hover:bg-red-600 border border-red-500"
+              title="Hang up call">
               <PhoneOff className="w-4 h-4" />
-            ) : (
-              <Phone className="w-4 h-4" />
-            )}
-          </Button>
+            </Button>
+          )}
         </div>
       </motion.div>
 
@@ -545,29 +510,6 @@ export default function Chat({ emergencyData, onBack }: Props) {
             </div>
           )}
 
-          {callStatus === 'speaking' && (
-            <div className="text-center py-8">
-              <div className="flex items-center justify-center space-x-2">
-                <Volume2 className="w-5 h-5 text-yellow-500 animate-pulse" />
-                <span className="text-sm text-yellow-500">Speaking...</span>
-              </div>
-              <p className="text-sm text-slate-400 mt-4">
-                Converting your message to speech
-              </p>
-            </div>
-          )}
-
-          {callStatus === 'active' && transcriptionProgress && (
-            <div className="text-center py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="text-sm text-blue-500">
-                  {transcriptionProgress}
-                </span>
-              </div>
-            </div>
-          )}
-
           {messages.map((message) => (
             <ChatBubble
               key={message.id}
@@ -577,27 +519,25 @@ export default function Chat({ emergencyData, onBack }: Props) {
             />
           ))}
 
-          {/* Prominent Hang Up Button for Active Calls */}
-          {(callStatus === 'active' || callStatus === 'hanging_up') && (
+          {/* Status message below last message */}
+          {statusMessage && callStatus !== 'connecting' && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex justify-center pt-4">
-              <Button
-                onClick={hangUpCall}
-                disabled={callStatus === 'hanging_up'}
-                variant="destructive"
-                size="lg"
-                className={`px-8 py-3 rounded-full shadow-lg border-2 ${
-                  callStatus === 'hanging_up'
-                    ? 'bg-slate-600 border-slate-500 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700 border-red-500'
-                } text-white`}>
-                <PhoneOff className="w-5 h-5 mr-2" />
-                {callStatus === 'hanging_up'
-                  ? 'Hanging Up...'
-                  : 'Hang Up Emergency Call'}
-              </Button>
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-center space-x-2 py-3 px-4 bg-[#1E2329] rounded-lg border border-[#2A2F38]">
+              {callStatus === 'speaking' && (
+                <Volume2 className="w-4 h-4 text-yellow-500 animate-pulse" />
+              )}
+              {callStatus === 'listening' && (
+                <Mic className="w-4 h-4 text-blue-500 animate-pulse" />
+              )}
+              {callStatus === 'transcribing' && (
+                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              )}
+              {callStatus === 'active' && (
+                <div className="w-4 h-4 bg-emerald-500 rounded-full animate-pulse" />
+              )}
+              <span className="text-sm text-slate-300">{statusMessage}</span>
             </motion.div>
           )}
 
