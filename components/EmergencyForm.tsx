@@ -130,7 +130,6 @@ export default function EmergencyForm({ onError, onSubmit }: Props) {
 
       // Call the parent's onSubmit callback with the emergency data
       onSubmit(payload)
-      toastSteps.success('Emergency request prepared')
     } catch (error) {
       console.error('Emergency request failed:', error)
       toastSteps.error('Failed to prepare emergency request. Please try again.')

@@ -106,9 +106,10 @@ export async function POST(request: NextRequest) {
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="5"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
         return new NextResponse(emptyTwiML, {
@@ -197,9 +198,10 @@ export async function POST(request: NextRequest) {
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="5"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
           return new NextResponse(errorTwiML, {
@@ -225,13 +227,14 @@ export async function POST(request: NextRequest) {
         // Continue the call with another recording
         const successTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Thank you. I'm listening for your next message.</Say>
+  <Say>Thank you. The person at risk is now replying.</Say>
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="10"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
         return new NextResponse(successTwiML, {
@@ -261,9 +264,10 @@ export async function POST(request: NextRequest) {
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="15"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
       return new NextResponse(successTwiML, {
@@ -278,13 +282,14 @@ export async function POST(request: NextRequest) {
       // Continue the call even if transcription fails
       const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>I had trouble understanding. Please try again.</Say>
+  <Say>An error occurred. Please try again.</Say>
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="15"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
       return new NextResponse(errorTwiML, {
@@ -301,9 +306,10 @@ export async function POST(request: NextRequest) {
   <Record 
     action="/api/twilio/recording-callback"
     method="POST"
-    maxLength="30"
+    maxLength="15"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
     return new NextResponse(errorTwiML, {

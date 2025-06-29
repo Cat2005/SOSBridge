@@ -5,7 +5,6 @@ import { motion } from 'framer-motion'
 import ChatBubble from '@/components/ChatBubble'
 import LoaderDots from '@/components/LoaderDots'
 import ErrorBanner from '@/components/ErrorBanner'
-import { useToastSteps } from '@/hooks/useToastSteps'
 import { Send, ArrowLeft, Phone, PhoneOff, Volume2, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,7 +51,7 @@ function buildEmergencyMessage(emergencyData: EmergencyData): string {
 
   let locationInfo = ''
   if (emergencyData.manualAddress) {
-    locationInfo += `My address is ${emergencyData.manualAddress}. `
+    locationInfo += `I am at ${emergencyData.manualAddress}. `
   }
 
   return `Hello this is a robot on behalf of someone that cannot speak. They said: I need help with ${service}. ${emergencyData.description}. ${locationInfo}`
@@ -195,6 +194,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const [inputText, setInputText] = useState('')
   const [callStatus, setCallStatus] = useState<
     | 'connecting'
+    | 'ringing'
     | 'active'
     | 'ended'
     | 'hanging_up'
@@ -214,7 +214,39 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const audioChunksRef = useRef<Blob[]>([])
   const isInitializedRef = useRef(false)
 
-  // Poll for transcribed responses
+  // Poll for call status updates
+  useEffect(() => {
+    if (!callSid || callStatus === 'ended' || callStatus === 'hanging_up')
+      return
+
+    const pollForCallStatus = async () => {
+      try {
+        const response = await fetch(
+          `/api/twilio/call-status?callSid=${callSid}`
+        )
+        if (response.ok) {
+          const data = await response.json()
+          if (data.status && data.status !== callStatus) {
+            console.log('[Chat] Call status updated:', data.status)
+            setCallStatus(data.status as any)
+
+            // If call is now active, start polling for transcriptions
+            if (data.status === 'active') {
+              setLastTranscriptionCheck(Date.now())
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Chat] Error polling call status:', error)
+      }
+    }
+
+    const interval = setInterval(pollForCallStatus, 1000) // Poll every 1 second
+
+    return () => clearInterval(interval)
+  }, [callSid, callStatus])
+
+  // Poll for transcribed responses (more frequent when active)
   useEffect(() => {
     if (!callSid || callStatus !== 'active') return
 
@@ -246,7 +278,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
       }
     }
 
-    const interval = setInterval(pollForTranscriptions, 2000) // Poll every 2 seconds
+    const interval = setInterval(pollForTranscriptions, 500) // Poll every 500ms for snappier experience
 
     return () => clearInterval(interval)
   }, [callSid, callStatus, lastTranscriptionCheck])
@@ -255,10 +287,12 @@ export default function Chat({ emergencyData, onBack }: Props) {
   useEffect(() => {
     if (callStatus === 'connecting') {
       setStatusMessage('Connecting to emergency services...')
+    } else if (callStatus === 'ringing') {
+      setStatusMessage('Calling emergency services - please wait...')
     } else if (callStatus === 'speaking') {
       setStatusMessage('Converting your message to speech...')
     } else if (callStatus === 'active') {
-      setStatusMessage('Listening for operator response...')
+      setStatusMessage('Connected - listening for operator response...')
     } else if (callStatus === 'listening') {
       setStatusMessage('Listening to operator...')
     } else if (callStatus === 'transcribing') {
@@ -311,7 +345,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
         const twilioCallSid = await makeTwilioCall(audioUrl)
         setCallSid(twilioCallSid)
 
-        setCallStatus('active')
+        setCallStatus('ringing')
         setIsProcessing(false)
       } catch (error) {
         console.error('[Chat] Error initializing call:', error)
@@ -341,9 +375,18 @@ export default function Chat({ emergencyData, onBack }: Props) {
   const sendMessage = async () => {
     if (!inputText.trim() || callStatus !== 'active' || isProcessing) return
 
+    // Count user messages to determine if this is the first message after the emergency message
+    const userMessageCount = messages.filter(
+      (msg) => msg.sender === 'user'
+    ).length
+
+    // Add prefix for all messages except the first one (emergency message)
+    const messageText =
+      userMessageCount > 0 ? `The person at risk said: ${inputText}` : inputText
+
     const message: Message = {
       id: Date.now().toString(),
-      text: inputText,
+      text: inputText, // Keep original text for display
       sender: 'user',
       timestamp: new Date(),
     }
@@ -353,8 +396,8 @@ export default function Chat({ emergencyData, onBack }: Props) {
     setCallStatus('speaking')
 
     try {
-      // Convert message to speech
-      const audioBuffer = await textToSpeech(inputText)
+      // Convert message to speech with prefix if needed
+      const audioBuffer = await textToSpeech(messageText)
 
       // Upload audio to server
       const audioUrl = await uploadAudioToServer(audioBuffer)
@@ -461,6 +504,8 @@ export default function Chat({ emergencyData, onBack }: Props) {
               className={`w-2 h-2 rounded-full ${
                 callStatus === 'active'
                   ? 'bg-emerald-500'
+                  : callStatus === 'ringing'
+                  ? 'bg-yellow-500 animate-pulse'
                   : callStatus === 'speaking'
                   ? 'bg-yellow-500'
                   : callStatus === 'listening'
@@ -474,6 +519,7 @@ export default function Chat({ emergencyData, onBack }: Props) {
             />
             <span className="text-sm font-medium text-slate-300">
               {callStatus === 'connecting' && 'Connecting...'}
+              {callStatus === 'ringing' && 'Ringing...'}
               {callStatus === 'speaking' && 'Speaking...'}
               {callStatus === 'active' && 'Connected'}
               {callStatus === 'listening' && 'Listening...'}
@@ -525,6 +571,9 @@ export default function Chat({ emergencyData, onBack }: Props) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center justify-center space-x-2 py-3 px-4 bg-[#1E2329] rounded-lg border border-[#2A2F38]">
+              {callStatus === 'ringing' && (
+                <Phone className="w-4 h-4 text-yellow-500 animate-pulse" />
+              )}
               {callStatus === 'speaking' && (
                 <Volume2 className="w-4 h-4 text-yellow-500 animate-pulse" />
               )}

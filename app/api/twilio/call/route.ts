@@ -46,9 +46,10 @@ export async function POST(request: NextRequest) {
   <Record 
     action="${callbackUrl}"
     method="POST"
-    maxLength="30"
+    maxLength="15"
     playBeep="true"
     trim="trim-silence"
+    timeout="3"
   />
 </Response>`
 
