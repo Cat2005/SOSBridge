@@ -1,4 +1,4 @@
-# Silent SOS - Emergency Communication System
+# SOSBridge - Emergency Communication System
 
 ![SOSBridge](./public/github-banner.png)
 
