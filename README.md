@@ -30,7 +30,10 @@ We believe emergency services are broken. In many places you can’t text 999/11
 
 ## Technology Stack
 
-- **Frontend + Backend**: Bolt.new, Next.js, React, TypeScript, Tailwind
-- **Text-to-Speech**: ElevenLabs API
-- **Phone Calls**: Twilio API
-- **Speech Recognition**: ElevenLabs Speech-to-Text
+We used **Bolt.new** to quickly scaffold our app with our preferred stack:
+
+- Next.js + TypeScript for the frontend
+- Tailwind CSS for styling
+- Twilio to handle phone calls and stream audio
+- **Eleven Labs** to generate realistic voice messages from text
+- Ngrok to gateway our traffic to our local servers
