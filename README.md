@@ -1,4 +1,4 @@
-# SOSBridge - Emergency Communication System
+# SOSBridge - built with Bolt.new and ElevenLabs
 
 ![SOSBridge](./public/github-banner.png)
 
