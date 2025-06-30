@@ -4,7 +4,7 @@
 
 Demo: **[YouTube link](https://youtu.be/yZuWo4Y7hWg)**
 
-We believe emergency services are broken. In many places you can’t text 999/112 (in the UK you have to pre-register, in Germany you can only use fax??), you may not know the right number, you might not share the language, or you may be in danger if you speak. SOS Bridge lets you reach any emergency line worldwide without making a sound. All you have to do is tap pre-set buttons and type; we translate, compress the details, call emergency services for you and stream a clear voice message to them in real time using Eleven Labs. When it’s the worst day of your life, you should only have to press one button.
+We believe emergency services are broken. In many places you can’t text 999/112 (in the UK you have to pre-register, in Germany you can only use fax??), you may not know the right number, you might not share the language, or you may be in danger if you speak. SOS Bridge lets you reach any emergency line worldwide without making a sound. All you have to do is tap pre-set buttons and type; we compress the details, call emergency services for you and stream a clear voice message to them in real time using Eleven Labs. When it’s the worst day of your life, you should only have to press one button.
 
 ## Features
 
@@ -30,8 +30,7 @@ We believe emergency services are broken. In many places you can’t text 999/11
 
 ## Technology Stack
 
-- **Frontend**: Next.js 13, React, TypeScript, Tailwind CSS
+- **Frontend + Backend**: Bolt.new, Next.js, React, TypeScript, Tailwind
 - **Text-to-Speech**: ElevenLabs API
 - **Phone Calls**: Twilio API
 - **Speech Recognition**: ElevenLabs Speech-to-Text
-- **UI Components**: Radix UI, Framer Motion
